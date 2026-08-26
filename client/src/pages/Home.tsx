@@ -57,11 +57,13 @@ import {
   type TemplateId,
 } from "@/lib/form";
 
-const MARK_URL = new URL("assets/taamin-mark.webp", import.meta.env.BASE_URL).toString();
-const PAPER_URL = new URL("assets/taamin-paper-surface.webp", import.meta.env.BASE_URL).toString();
-const RIBBON_URL = new URL("assets/taamin-spreadsheet-ribbon.webp", import.meta.env.BASE_URL).toString();
-const FORM_URL = new URL("assets/taamin-form-preview.webp", import.meta.env.BASE_URL).toString();
-const S6_PREVIEW_URL = new URL("assets/taamin-s6-preview.png", import.meta.env.BASE_URL).toString();
+const ASSET_BASE = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const assetUrl = (name: string) => `${ASSET_BASE}assets/${name}`;
+const MARK_URL = assetUrl("taamin-mark.webp");
+const PAPER_URL = assetUrl("taamin-paper-surface.webp");
+const RIBBON_URL = assetUrl("taamin-spreadsheet-ribbon.webp");
+const FORM_URL = assetUrl("taamin-form-preview.webp");
+const S6_PREVIEW_URL = assetUrl("taamin-s6-preview.png");
 
 type EditableKey = Exclude<keyof PersonRecord, "id">;
 type Mode = "manual" | "bulk";

@@ -6,11 +6,14 @@ import * as reshaperPackage from "arabic-persian-reshaper";
 import JSZip from "jszip";
 import type { PersonRecord, TemplateId } from "./form";
 
+const ASSET_BASE = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const assetUrl = (name: string) => `${ASSET_BASE}assets/${name}`;
+
 export const TEMPLATE_URLS: Record<TemplateId, string> = {
-  s1: new URL("assets/taamin-template.pdf", import.meta.env.BASE_URL).toString(),
-  s6: new URL("assets/taamin-s6-template.pdf", import.meta.env.BASE_URL).toString(),
+  s1: assetUrl("taamin-template.pdf"),
+  s6: assetUrl("taamin-s6-template.pdf"),
 };
-const ARABIC_FONT_URL = new URL("assets/NotoNaskhArabic-Regular.ttf", import.meta.env.BASE_URL).toString();
+const ARABIC_FONT_URL = assetUrl("NotoNaskhArabic-Regular.ttf");
 
 const ArabicShaper = (reshaperPackage as unknown as { ArabicShaper?: { convertArabic: (value: string) => string } }).ArabicShaper;
 
