@@ -1,6 +1,6 @@
 // Design reminder: exported documents preserve the original official form; the app adds only the user's data and keeps the workflow quiet and auditable.
 
-import { PDFDocument, type PDFTextField, type PDFFont } from "pdf-lib";
+import { PDFDocument, TextAlignment, type PDFTextField, type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import * as reshaperPackage from "arabic-persian-reshaper";
 import JSZip from "jszip";
@@ -48,14 +48,19 @@ function toPdfText(value: string) {
 }
 function cleanDigits(value: string) { return value.replace(/[^0-9٠-٩]/g, "").replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))); }
 function field<T>(form: ReturnType<PDFDocument["getForm"]>, name: string, getter: (form: ReturnType<PDFDocument["getForm"]>, name: string) => T) { try { return getter(form, name); } catch { return null; } }
-function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string, font: PDFFont) {
+function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string, font: PDFFont, alignment: TextAlignment = TextAlignment.Right) {
   const textField = field<PDFTextField>(form, name, (current, fieldName) => current.getTextField(fieldName));
   if (!textField) return;
-  try { textField.setText(toPdfText(value)); textField.setFontSize(Math.max(7, Math.min(11, value.length > 22 ? 8 : 10))); textField.updateAppearances(font); } catch { /* continue with the remaining fields */ }
+  try {
+    textField.setText(toPdfText(value));
+    textField.setAlignment(alignment);
+    textField.setFontSize(Math.max(7, Math.min(11, value.length > 28 ? 7 : value.length > 20 ? 8 : 10)));
+    textField.updateAppearances(font);
+  } catch { /* continue with the remaining fields */ }
 }
-function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const digits = cleanDigits(rawValue); names.forEach((name, index) => setText(form, name, digits[index] ?? "", font)); }
-function setDateFields(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const parts = rawValue.includes("-") ? rawValue.split("-").reverse() : cleanDigits(rawValue).match(/\d{1,4}/g) ?? []; names.forEach((name, index) => setText(form, name, parts[index] ?? "", font)); }
-function setMoneyFields(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const [whole, fraction = ""] = String(rawValue).replace(/[,،]/g, ".").split("."); setText(form, names[0], whole, font); if (names[1]) setText(form, names[1], fraction.padEnd(2, "0").slice(0, 2), font); }
+function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const digits = cleanDigits(rawValue); names.forEach((name, index) => setText(form, name, digits[index] ?? "", font, TextAlignment.Center)); }
+function setDateFields(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const parts = rawValue.includes("-") ? rawValue.split("-").reverse() : cleanDigits(rawValue).match(/\d{1,4}/g) ?? []; names.forEach((name, index) => setText(form, name, parts[index] ?? "", font, TextAlignment.Center)); }
+function setMoneyFields(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const [whole, fraction = ""] = String(rawValue).replace(/[,،]/g, ".").split("."); setText(form, names[0], whole, font, TextAlignment.Center); if (names[1]) setText(form, names[1], fraction.padEnd(2, "0").slice(0, 2), font, TextAlignment.Center); }
 function setCheckboxes(form: ReturnType<PDFDocument["getForm"]>, category: string) { Object.entries(checkboxBindings.category ?? {}).forEach(([label, fieldName]) => { const checkbox = field(form, fieldName, (current, name) => current.getCheckBox(name)); if (!checkbox) return; try { label === category ? checkbox.check() : checkbox.uncheck(); } catch { /* non-standard appearance state */ } }); }
 
 export async function fillPdf(record: PersonRecord, template: TemplateId = "s1") {
@@ -87,6 +92,8 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     }
   }
   if (template === "s1") setCheckboxes(form, record.category);
+  // Refresh all widgets with the embedded Arabic font so untouched fields never fall back to WinAnsi.
+  // Values were already reshaped before setText, so this preserves RTL glyph order while avoiding encoding errors.
   form.updateFieldAppearances(arabicFont);
   return pdfDoc.save({ useObjectStreams: false });
 }
