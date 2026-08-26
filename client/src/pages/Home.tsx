@@ -53,12 +53,15 @@ import {
   mapExcelRow,
   recordStatus,
   type PersonRecord,
+  TEMPLATE_LABELS,
+  type TemplateId,
 } from "@/lib/form";
 
 const MARK_URL = "/manus-storage/taamin-mark_8d010f36.png";
 const PAPER_URL = "/manus-storage/taamin-paper-surface_7ae24a39.png";
 const RIBBON_URL = "/manus-storage/taamin-spreadsheet-ribbon_4fa1781d.png";
 const FORM_URL = "/manus-storage/taamin-form-preview_bb5afe6d.png";
+const S6_PREVIEW_URL = "/manus-storage/taamin-s6-preview_a892bfd3.png";
 
 type EditableKey = Exclude<keyof PersonRecord, "id">;
 type Mode = "manual" | "bulk";
@@ -147,9 +150,24 @@ const fieldGroups: FieldGroup[] = [
       { key: "manager", label: "المدير المسؤول", placeholder: "اسم المسؤول" },
       { key: "releaseDate", label: "تحريرًا في", placeholder: "تاريخ التحرير", type: "date" },
     ],
+    },
+  {
+    id: "s6",
+    number: "05",
+    title: "إخطار انتهاء الاشتراك",
+    note: "حقول نموذج س6 الخاصة بمقدم الطلب وسبب الانتهاء",
+    icon: FileText,
+    fields: [
+      { key: "applicantName", label: "مقدم الطلب", placeholder: "اسم مقدم الطلب" },
+      { key: "applicantRole", label: "صفة مقدم الطلب", placeholder: "صاحب العمل / المسؤول" },
+      { key: "applicantPhone", label: "رقم تليفون مقدم الطلب", placeholder: "رقم الهاتف", type: "number" },
+      { key: "applicantNationalId", label: "الرقم القومي لمقدم الطلب", placeholder: "الرقم القومي", type: "number" },
+      { key: "endDate", label: "تاريخ انتهاء الاشتراك", placeholder: "تاريخ الانتهاء", type: "date" },
+      { key: "endReason", label: "سبب انتهاء الاشتراك", placeholder: "سبب الانتهاء" },
+      { key: "address", label: "العنوان", placeholder: "العنوان بالتفصيل", wide: true },
+    ],
   },
 ];
-
 function initials(value: string) {
   return value
     .trim()
@@ -169,6 +187,7 @@ export default function Home() {
   const [records, setRecords] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
   const [activeId, setActiveId] = useState(() => records[0].id);
   const [mode, setMode] = useState<Mode>("manual");
+  const [template, setTemplate] = useState<TemplateId>("s1");
   const [activeGroup, setActiveGroup] = useState("identity");
   const [search, setSearch] = useState("");
   const [fileName, setFileName] = useState("");
@@ -179,6 +198,7 @@ export default function Home() {
   const activeRecord = records.find((record) => record.id === activeId) ?? records[0];
   const readyCount = records.filter((record) => recordStatus(record) === "جاهز").length;
   const draftCount = records.filter((record) => recordStatus(record) !== "جاهز").length;
+  const availableGroups = useMemo(() => template === "s6" ? fieldGroups : fieldGroups.filter((group) => group.id !== "s6"), [template]);
   const visibleRecords = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("ar-EG");
     if (!query) return records;
@@ -189,6 +209,11 @@ export default function Home() {
         .includes(query),
     );
   }, [records, search]);
+  function changeTemplate(next: TemplateId) {
+    setTemplate(next);
+    setActiveGroup("identity");
+    toast.success(`تم اختيار ${TEMPLATE_LABELS[next]}`, { description: "سيُستخدم هذا القالب عند المعاينة والتصدير." });
+  }
 
   function updateField(key: EditableKey, value: string) {
     setRecords((current) =>
@@ -257,8 +282,8 @@ export default function Home() {
   async function downloadSelected() {
     setIsProcessing(true);
     try {
-      const pdf = await fillPdf(activeRecord);
-      downloadBlob(pdf, safeFileName(activeRecord), "application/pdf");
+      const pdf = await fillPdf(activeRecord, template);
+      downloadBlob(pdf, safeFileName(activeRecord, 1, template), "application/pdf");
       toast.success("تم تجهيز النموذج", { description: "الملف جاهز للطباعة أو المراجعة." });
     } catch (error) {
       toast.error("تعذر تجهيز PDF", { description: error instanceof Error ? error.message : "حاول مرة أخرى." });
@@ -275,7 +300,7 @@ export default function Home() {
     }
     setIsProcessing(true);
     try {
-      const zip = await createZip(validRecords);
+      const zip = await createZip(validRecords, template);
       downloadBlob(zip, `نماذج-التأمينات-${new Date().toISOString().slice(0, 10)}.zip`, "application/zip");
       toast.success(`تم تجهيز ${validRecords.length} نموذجًا`, { description: "تم جمع الملفات داخل ZIP واحد." });
     } catch (error) {
@@ -324,7 +349,9 @@ export default function Home() {
             </div>
             <div className="sidebar-bottom">
               <p className="template-label">القالب الحالي</p>
-              <div className="template-chip"><FileText size={16} /><span>نموذج س1</span><BadgeCheck size={15} /></div>
+              <div className="template-switcher" aria-label="اختيار القالب">
+                {(Object.keys(TEMPLATE_LABELS) as TemplateId[]).map((id) => <button key={id} className={template === id ? "template-option template-option-active" : "template-option"} onClick={() => changeTemplate(id)}><FileText size={14} /><span>{TEMPLATE_LABELS[id]}</span>{template === id && <BadgeCheck size={14} />}</button>)}
+              </div>
             </div>
           </div>
         </aside>
@@ -332,8 +359,8 @@ export default function Home() {
         <main className="main-content">
           <section className="page-intro">
             <div className="intro-copy">
-              <div className="breadcrumb"><span>لوحة النماذج</span><ArrowLeft size={13} /><strong>نموذج س1</strong></div>
-              <p className="eyebrow"><span className="eyebrow-line" /> نموذج الاشتراك المؤمن عليه</p>
+              <div className="breadcrumb"><span>لوحة النماذج</span><ArrowLeft size={13} /><strong>{TEMPLATE_LABELS[template]}</strong></div>
+              <p className="eyebrow"><span className="eyebrow-line" /> {template === "s6" ? "إخطار انتهاء اشتراك مؤمن عليه" : "نموذج الاشتراك المؤمن عليه"}</p>
               <h1>من جدول واحد<br /><em>إلى نماذج جاهزة.</em></h1>
               <p className="intro-description">اكتب بيانات شخص واحد أو ارفع ملف Excel كاملًا. راجع كل سجل، ثم احصل على ملفات PDF مرتبة وجاهزة للطباعة.</p>
               <div className="intro-actions">
@@ -346,8 +373,8 @@ export default function Home() {
             </div>
             <div className="intro-visual">
               <img className="visual-paper" src={PAPER_URL} alt="" />
-              <div className="hero-form-artifact"><img src={FORM_URL} alt="" /><span>نموذج س1</span></div>
-              <div className="visual-overlay"><span>س1</span><b>وثيقة<br />تأمين</b><small>جاهز للطباعة</small></div>
+              <div className="hero-form-artifact"><img src={template === "s6" ? S6_PREVIEW_URL : FORM_URL} alt="" /><span>{TEMPLATE_LABELS[template]}</span></div>
+              <div className="visual-overlay"><span>{template === "s6" ? "س6" : "س1"}</span><b>{template === "s6" ? <>إخطار<br />اشتراك</> : <>وثيقة<br />تأمين</>}</b><small>جاهز للطباعة</small></div>
               <div className="visual-ribbon"><FileSpreadsheet size={17} /><span>Excel → PDF</span></div>
               <div className="visual-stamp"><Check size={16} /> جاهز</div>
             </div>
@@ -365,7 +392,7 @@ export default function Home() {
           <section className="workbench-section registry-section">
             <div className="section-heading-row">
               <div><p className="section-overline">مسار العمل <span>01 / 03</span></p><h2>أدخل البيانات</h2></div>
-              <div className="heading-tools"><span className="template-pill"><FileText size={14} /> نموذج س1 <ChevronDown size={14} /></span><span className="autosave"><span /> حفظ تلقائي</span></div>
+              <div className="heading-tools"><span className="template-pill"><FileText size={14} /> {TEMPLATE_LABELS[template]} <ChevronDown size={14} /></span><span className="autosave"><span /> حفظ تلقائي</span></div>
             </div>
 
             <Card className="mode-card registry-card">
@@ -419,10 +446,10 @@ export default function Home() {
             <div className="editor-panel">
               <div className="editor-header"><div><p className="section-overline">السجل المحدد</p><h2>{activeRecord.insuredName || "سجل جديد"}</h2></div><Badge className={`status-badge ${statusClass(recordStatus(activeRecord))}`}><span />{recordStatus(activeRecord)}</Badge></div>
               <div className="group-tabs" role="tablist" aria-label="أقسام النموذج">
-                {fieldGroups.map((group) => { const Icon = group.icon; return <button key={group.id} className={activeGroup === group.id ? "group-tab-active" : ""} onClick={() => setActiveGroup(group.id)}><span className="group-tab-number">{group.number}</span><Icon size={16} /><span>{group.title}</span></button>; })}
+                {availableGroups.map((group) => { const Icon = group.icon; return <button key={group.id} className={activeGroup === group.id ? "group-tab-active" : ""} onClick={() => setActiveGroup(group.id)}><span className="group-tab-number">{group.number}</span><Icon size={16} /><span>{group.title}</span></button>; })}
               </div>
               <div className="field-groups">
-                {fieldGroups.map((group) => {
+                {availableGroups.map((group) => {
                   const Icon = group.icon;
                   const visible = activeGroup === group.id;
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
@@ -438,13 +465,13 @@ export default function Home() {
 
             <aside className="preview-panel">
               <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / 2</span></div>
-              <div className="preview-frame"><div className="preview-paper"><img src={FORM_URL} alt="معاينة نموذج التأمينات" /><div className="preview-data preview-name">{activeRecord.insuredName || "اسم المؤمن عليه"}</div><div className="preview-data preview-establishment">{activeRecord.establishmentName || "اسم المنشأة"}</div><div className="preview-data preview-id">{activeRecord.nationalId || "—"}</div><div className="preview-data preview-date">{activeRecord.startDate || "—"}</div></div><div className="preview-control"><button><ChevronDown size={14} /></button><span>100%</span><button><Plus size={14} /></button></div></div>
+              <div className="preview-frame"><div className="preview-paper"><img src={template === "s6" ? S6_PREVIEW_URL : FORM_URL} alt={`معاينة ${TEMPLATE_LABELS[template]}`} /><div className="preview-data preview-name">{activeRecord.insuredName || "اسم المؤمن عليه"}</div><div className="preview-data preview-establishment">{activeRecord.establishmentName || "اسم المنشأة"}</div><div className="preview-data preview-id">{activeRecord.nationalId || "—"}</div><div className="preview-data preview-date">{activeRecord.startDate || "—"}</div></div><div className="preview-control"><button><ChevronDown size={14} /></button><span>100%</span><button><Plus size={14} /></button></div></div>
               <div className="preview-note"><div className="note-seal small"><Check size={14} /></div><div><strong>المعاينة تقريبية</strong><p>البيانات ستُوضع داخل الحقول الأصلية عند تنزيل PDF.</p></div></div>
               <Button className="full-preview-button" variant="outline" onClick={downloadSelected}><Printer size={15} /> معاينة / تنزيل الصفحة</Button>
             </aside>
           </section>
 
-          <footer className="app-footer"><span>معبّي © 2026</span><span>نموذج س1 · النسخة الأولى</span><span>مصمم لتسهيل العمل المكتبي</span></footer>
+          <footer className="app-footer"><span>معبّي © 2026</span><span>{TEMPLATE_LABELS[template]} · النسخة الأولى</span><span>مصمم لتسهيل العمل المكتبي</span></footer>
         </main>
       </div>
     </div>

@@ -1,5 +1,7 @@
 // Design reminder: form vocabulary follows the “Registry Desk” philosophy—quiet, precise, and close to the printed document.
 
+export type TemplateId = "s1" | "s6";
+export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1", s6: "نموذج س6" };
 export type RecordStatus = "مسودة" | "جاهز" | "ناقص";
 
 export type PersonRecord = {
@@ -35,6 +37,13 @@ export type PersonRecord = {
   employer: string;
   manager: string;
   releaseDate: string;
+  applicantName: string;
+  applicantRole: string;
+  applicantPhone: string;
+  applicantNationalId: string;
+  endDate: string;
+  endReason: string;
+  address: string;
 };
 
 export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = [
@@ -69,6 +78,13 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "employer", label: "جهة العمل" },
   { key: "manager", label: "المدير المسؤول" },
   { key: "releaseDate", label: "تحريرًا في" },
+  { key: "applicantName", label: "مقدم الطلب" },
+  { key: "applicantRole", label: "صفة مقدم الطلب" },
+  { key: "applicantPhone", label: "رقم تليفون مقدم الطلب" },
+  { key: "applicantNationalId", label: "الرقم القومي لمقدم الطلب" },
+  { key: "endDate", label: "تاريخ انتهاء الاشتراك" },
+  { key: "endReason", label: "سبب انتهاء الاشتراك" },
+  { key: "address", label: "العنوان" },
 ];
 
 const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
@@ -103,6 +119,13 @@ const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
   employer: "",
   manager: "",
   releaseDate: "",
+  applicantName: "",
+  applicantRole: "",
+  applicantPhone: "",
+  applicantNationalId: "",
+  endDate: "",
+  endReason: "",
+  address: "",
 };
 
 export function makeEmptyRecord(): PersonRecord {
@@ -160,6 +183,13 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   employer: ["جهة العمل", "جهة العمل / المنشأة", "employer"],
   manager: ["المدير المسؤول", "المدير المسئول", "manager"],
   releaseDate: ["تحريرًا في", "تحريرا في", "تاريخ التحرير", "releasedate"],
+  applicantName: ["مقدم الطلب", "اسم مقدم الطلب", "applicantname"],
+  applicantRole: ["صفة مقدم الطلب", "صفة مقدم الطلب", "applicantrole"],
+  applicantPhone: ["رقم تليفون مقدم الطلب", "تليفون مقدم الطلب", "applicantphone"],
+  applicantNationalId: ["الرقم القومي لمقدم الطلب", "رقم قومي مقدم الطلب", "applicantnationalid"],
+  endDate: ["تاريخ انتهاء الاشتراك", "تاريخ الانتهاء", "enddate", "subscriptionenddate"],
+  endReason: ["سبب انتهاء الاشتراك", "سبب الانتهاء", "endreason", "subscriptionendreason"],
+  address: ["العنوان", "عنوان مقدم الطلب", "address"],
 };
 
 export function mapExcelRow(row: Record<string, unknown>): PersonRecord {

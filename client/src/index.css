@@ -96,6 +96,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .sidebar-bottom .template-label { margin: 0 0 9px; }
 .template-chip { min-height: 43px; border: 1px solid rgba(255,255,255,.11); background: #2b3832; border-radius: 8px; padding: 0 12px; display: flex; align-items: center; gap: 9px; font-size: 11px; color: #e6ece6; }
 .template-chip svg:last-child { color: #81b58d; margin-right: auto; }
+.template-switcher { display: grid; gap: 7px; }
+.template-option { width: 100%; min-height: 38px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.035); border-radius: 7px; padding: 0 10px; display: flex; align-items: center; gap: 8px; color: #aab6ad; font-family: "Cairo", sans-serif; font-size: 10px; transition: background .18s ease, color .18s ease, border-color .18s ease, transform .16s ease; }
+.template-option:hover { color: #f3f4ed; background: rgba(255,255,255,.08); }
+.template-option:active { transform: scale(.97); }
+.template-option-active { color: #f5eadc; background: #35473e; border-color: rgba(205,133,67,.65); box-shadow: inset -3px 0 #c77b3e; }
+.template-option svg:last-child { color: #87bf91; margin-right: auto; }
 .main-content { min-width: 0; flex: 1; padding: 0 5.4vw 45px; overflow: hidden; }
 .page-intro { max-width: 1230px; margin: 0 auto; padding: 56px 0 39px; display: grid; grid-template-columns: minmax(0, .96fr) minmax(380px, .9fr); gap: 7%; align-items: center; }
 .breadcrumb { display: flex; align-items: center; gap: 7px; color: #a1a5a0; font-size: 10px; margin-bottom: 25px; }
