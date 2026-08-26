@@ -7,10 +7,10 @@ import JSZip from "jszip";
 import type { PersonRecord, TemplateId } from "./form";
 
 export const TEMPLATE_URLS: Record<TemplateId, string> = {
-  s1: "/manus-storage/taamin-template_d1277e6e.pdf",
-  s6: "/manus-storage/taamin-s6-template_57d501b4.pdf",
+  s1: "/assets/taamin-template.pdf",
+  s6: "/assets/taamin-s6-template.pdf",
 };
-const ARABIC_FONT_URL = "/manus-storage/NotoNaskhArabic-Regular_4e88e6ff.ttf";
+const ARABIC_FONT_URL = "/assets/NotoNaskhArabic-Regular.ttf";
 
 const ArabicShaper = (reshaperPackage as unknown as { ArabicShaper?: { convertArabic: (value: string) => string } }).ArabicShaper;
 
