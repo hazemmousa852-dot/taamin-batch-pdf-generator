@@ -1,25 +1,452 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+// Design reminder: this page is a neo-editorial registry desk—warm paper surfaces, amber actions, charcoal ink, and document-first hierarchy.
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
- */
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import * as XLSX from "xlsx";
+import {
+  ArrowDownToLine,
+  ArrowLeft,
+  BadgeCheck,
+  BriefcaseBusiness,
+  Building2,
+  Check,
+  ChevronDown,
+  CircleHelp,
+  ClipboardList,
+  CloudUpload,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  FolderOpen,
+  Hash,
+  LayoutDashboard,
+  Loader2,
+  Menu,
+  MoreHorizontal,
+  Plus,
+  Printer,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Trash2,
+  Upload,
+  UserRound,
+  UsersRound,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  createZip,
+  downloadBlob,
+  fillPdf,
+  safeFileName,
+} from "@/lib/pdf";
+import {
+  EXCEL_HEADERS,
+  filledCount,
+  makeEmptyRecord,
+  mapExcelRow,
+  recordStatus,
+  type PersonRecord,
+} from "@/lib/form";
+
+const MARK_URL = "/manus-storage/taamin-mark_8d010f36.png";
+const PAPER_URL = "/manus-storage/taamin-paper-surface_7ae24a39.png";
+const RIBBON_URL = "/manus-storage/taamin-spreadsheet-ribbon_4fa1781d.png";
+const FORM_URL = "/manus-storage/taamin-form-preview_bb5afe6d.png";
+
+type EditableKey = Exclude<keyof PersonRecord, "id">;
+type Mode = "manual" | "bulk";
+
+type FieldSpec = {
+  key: EditableKey;
+  label: string;
+  placeholder?: string;
+  type?: "text" | "date" | "number" | "email";
+  wide?: boolean;
+};
+
+type FieldGroup = {
+  id: string;
+  number: string;
+  title: string;
+  note: string;
+  icon: typeof UserRound;
+  fields: FieldSpec[];
+};
+
+const fieldGroups: FieldGroup[] = [
+  {
+    id: "identity",
+    number: "01",
+    title: "بيانات المؤمن عليه",
+    note: "المعلومات الأساسية كما ستظهر في بداية النموذج",
+    icon: UserRound,
+    fields: [
+      { key: "insuredName", label: "اسم المؤمن عليه", placeholder: "اكتب الاسم رباعيًا" },
+      { key: "nationalId", label: "الرقم القومي", placeholder: "14 رقمًا", type: "number" },
+      { key: "insuranceNumber", label: "الرقم التأميني", placeholder: "رقم الملف التأميني", type: "number" },
+      { key: "birthDate", label: "تاريخ الميلاد", placeholder: "يوم / شهر / سنة", type: "date" },
+      { key: "gender", label: "النوع", placeholder: "ذكر / أنثى" },
+      { key: "category", label: "الفئة", placeholder: "اختر الفئة" },
+    ],
+  },
+  {
+    id: "work",
+    number: "02",
+    title: "بيانات العمل والاشتراك",
+    note: "الحقل الذي يربط الشخص بالمنشأة والتغطية التأمينية",
+    icon: BriefcaseBusiness,
+    fields: [
+      { key: "establishmentName", label: "اسم المنشأة", placeholder: "اسم الشركة أو المنشأة" },
+      { key: "establishmentNumber", label: "رقم المنشأة", placeholder: "رقم المنشأة", type: "number" },
+      { key: "office", label: "المكتب", placeholder: "مكتب التأمينات" },
+      { key: "profession", label: "المهنة", placeholder: "المسمى الوظيفي" },
+      { key: "professionCode", label: "كود المهنة", placeholder: "الكود" },
+      { key: "qualification", label: "المؤهل", placeholder: "المؤهل الدراسي" },
+      { key: "startDate", label: "تاريخ بدء الاشتراك", placeholder: "تاريخ البدء", type: "date" },
+      { key: "contributionCode", label: "كود الاشتراك", placeholder: "كود الاشتراك" },
+      { key: "workType", label: "نوع المدة", placeholder: "نوع المدة" },
+    ],
+  },
+  {
+    id: "wage",
+    number: "03",
+    title: "الأجر والعجز",
+    note: "الأرقام تُحفظ كما أدخلتها وتُنسخ إلى خانات النموذج",
+    icon: Hash,
+    fields: [
+      { key: "basicWage", label: "الأجر الأساسي", placeholder: "0.00", type: "number" },
+      { key: "variableWage", label: "الأجر المتغير", placeholder: "0.00", type: "number" },
+      { key: "totalWage", label: "الأجر الشامل", placeholder: "0.00", type: "number" },
+      { key: "increaseDate", label: "تاريخ بداية العجز / الزيادة", placeholder: "التاريخ", type: "date" },
+      { key: "increasePercent", label: "نسبة العجز / الزيادة", placeholder: "%", type: "number" },
+    ],
+  },
+  {
+    id: "address",
+    number: "04",
+    title: "العنوان والتواصل",
+    note: "بيانات محل الإقامة وجهة العمل والتواصل",
+    icon: Building2,
+    fields: [
+      { key: "country", label: "الدولة", placeholder: "مصر" },
+      { key: "city", label: "المدينة", placeholder: "المدينة" },
+      { key: "governorate", label: "المحافظة", placeholder: "المحافظة" },
+      { key: "district", label: "الشياخة / القرية", placeholder: "الشياخة أو القرية" },
+      { key: "street", label: "الشارع", placeholder: "اسم الشارع" },
+      { key: "center", label: "القسم / المركز", placeholder: "القسم أو المركز" },
+      { key: "phone", label: "التليفون", placeholder: "رقم الهاتف", type: "number" },
+      { key: "email", label: "البريد الإلكتروني", placeholder: "name@company.com", type: "email" },
+      { key: "employer", label: "جهة العمل", placeholder: "جهة العمل" },
+      { key: "manager", label: "المدير المسؤول", placeholder: "اسم المسؤول" },
+      { key: "releaseDate", label: "تحريرًا في", placeholder: "تاريخ التحرير", type: "date" },
+    ],
+  },
+];
+
+function initials(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("") || "—";
+}
+
+function statusClass(status: ReturnType<typeof recordStatus>) {
+  if (status === "جاهز") return "status-ready";
+  if (status === "ناقص") return "status-warning";
+  return "status-draft";
+}
+
 export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  const [records, setRecords] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
+  const [activeId, setActiveId] = useState(() => records[0].id);
+  const [mode, setMode] = useState<Mode>("manual");
+  const [activeGroup, setActiveGroup] = useState("identity");
+  const [search, setSearch] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activeRecord = records.find((record) => record.id === activeId) ?? records[0];
+  const readyCount = records.filter((record) => recordStatus(record) === "جاهز").length;
+  const draftCount = records.filter((record) => recordStatus(record) !== "جاهز").length;
+  const visibleRecords = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("ar-EG");
+    if (!query) return records;
+    return records.filter((record) =>
+      [record.insuredName, record.nationalId, record.establishmentName]
+        .join(" ")
+        .toLocaleLowerCase("ar-EG")
+        .includes(query),
+    );
+  }, [records, search]);
+
+  function updateField(key: EditableKey, value: string) {
+    setRecords((current) =>
+      current.map((record) => (record.id === activeId ? { ...record, [key]: value } : record)),
+    );
+  }
+
+  function addRecord() {
+    const next = makeEmptyRecord();
+    setRecords((current) => [...current, next]);
+    setActiveId(next.id);
+    setMode("manual");
+    toast.success("أضيف سجل جديد", { description: "يمكنك بدء تعبئة بيانات المؤمن عليه الآن." });
+  }
+
+  function removeRecord(id: string) {
+    if (records.length === 1) {
+      toast.error("لا يمكن حذف السجل الوحيد", { description: "أضف سجلًا آخر قبل الحذف." });
+      return;
+    }
+    const next = records.filter((record) => record.id !== id);
+    setRecords(next);
+    if (id === activeId) setActiveId(next[0].id);
+    toast.success("تم حذف السجل");
+  }
+
+  async function handleExcel(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setIsProcessing(true);
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const imported = rows.map(mapExcelRow).filter((record) => filledCount(record) > 0);
+      if (!imported.length) {
+        toast.error("لم نجد صفوفًا قابلة للاستيراد", { description: "تأكد من أن الصف الأول يحتوي على أسماء الأعمدة." });
+        return;
+      }
+      setRecords(imported);
+      setActiveId(imported[0].id);
+      setMode("bulk");
+      toast.success(`تم استيراد ${imported.length} سجل`, { description: "راجع الصفوف ثم نزّل الدفعة عند الجاهزية." });
+    } catch {
+      toast.error("تعذر قراءة ملف Excel", { description: "استخدم ملف .xlsx أو .xls سليمًا." });
+    } finally {
+      setIsProcessing(false);
+      event.target.value = "";
+    }
+  }
+
+  function downloadTemplate() {
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      EXCEL_HEADERS.map((item) => item.label),
+      EXCEL_HEADERS.map(() => ""),
+    ]);
+    worksheet["!cols"] = EXCEL_HEADERS.map(() => ({ wch: 22 }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "بيانات المؤمن عليهم");
+    const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    downloadBlob(data, "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    toast.success("تم تنزيل قالب Excel");
+  }
+
+  async function downloadSelected() {
+    setIsProcessing(true);
+    try {
+      const pdf = await fillPdf(activeRecord);
+      downloadBlob(pdf, safeFileName(activeRecord), "application/pdf");
+      toast.success("تم تجهيز النموذج", { description: "الملف جاهز للطباعة أو المراجعة." });
+    } catch (error) {
+      toast.error("تعذر تجهيز PDF", { description: error instanceof Error ? error.message : "حاول مرة أخرى." });
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  async function downloadAll() {
+    const validRecords = records.filter((record) => recordStatus(record) === "جاهز");
+    if (!validRecords.length) {
+      toast.error("لا توجد سجلات مكتملة", { description: "أكمل الاسم والرقم القومي واسم المنشأة أولًا." });
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const zip = await createZip(validRecords);
+      downloadBlob(zip, `نماذج-التأمينات-${new Date().toISOString().slice(0, 10)}.zip`, "application/zip");
+      toast.success(`تم تجهيز ${validRecords.length} نموذجًا`, { description: "تم جمع الملفات داخل ZIP واحد." });
+    } catch (error) {
+      toast.error("تعذر تجهيز الدفعة", { description: error instanceof Error ? error.message : "حاول مرة أخرى." });
+    } finally {
+      setIsProcessing(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div className="app-shell" dir="rtl">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <button className="mobile-menu" onClick={() => setSidebarOpen((open) => !open)} aria-label="فتح القائمة">
+            <Menu size={18} />
+          </button>
+          <img src={MARK_URL} alt="" className="brand-mark" />
+          <div>
+            <p className="brand-name">معبّي</p>
+            <p className="brand-caption">مكتب النماذج الذكي</p>
+          </div>
+        </div>
+        <div className="topbar-actions">
+          <div className="connection-state"><span className="state-dot" /> يعمل محليًا على جهازك</div>
+          <button className="icon-button" aria-label="المساعدة"><CircleHelp size={18} /></button>
+          <button className="avatar-button" aria-label="الحساب">م</button>
+        </div>
+      </header>
+
+      <div className="workspace">
+        <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+          <div className="sidebar-inner">
+            <div className="sidebar-kicker">مساحة العمل</div>
+            <nav className="main-nav" aria-label="التنقل الرئيسي">
+              <button className="nav-item nav-item-active"><LayoutDashboard size={17} /> لوحة النماذج <span className="nav-count">{records.length}</span></button>
+              <button className="nav-item"><FolderOpen size={17} /> أرشيف الملفات <span className="nav-soon">قريبًا</span></button>
+              <button className="nav-item"><Settings2 size={17} /> إعدادات القالب <span className="nav-soon">قريبًا</span></button>
+            </nav>
+            <div className="sidebar-rule" />
+            <div className="sidebar-note">
+              <div className="note-seal"><ShieldCheck size={16} /></div>
+              <div>
+                <p>بياناتك تبقى هنا</p>
+                <span>المعالجة تتم داخل المتصفح ولا نرفع الملفات إلى خادم.</span>
+              </div>
+            </div>
+            <div className="sidebar-bottom">
+              <p className="template-label">القالب الحالي</p>
+              <div className="template-chip"><FileText size={16} /><span>نموذج س1</span><BadgeCheck size={15} /></div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="main-content">
+          <section className="page-intro">
+            <div className="intro-copy">
+              <div className="breadcrumb"><span>لوحة النماذج</span><ArrowLeft size={13} /><strong>نموذج س1</strong></div>
+              <p className="eyebrow"><span className="eyebrow-line" /> نموذج الاشتراك المؤمن عليه</p>
+              <h1>من جدول واحد<br /><em>إلى نماذج جاهزة.</em></h1>
+              <p className="intro-description">اكتب بيانات شخص واحد أو ارفع ملف Excel كاملًا. راجع كل سجل، ثم احصل على ملفات PDF مرتبة وجاهزة للطباعة.</p>
+              <div className="intro-actions">
+                <Button className="button-primary" onClick={downloadAll} disabled={isProcessing}>
+                  {isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />}
+                  تجهيز النماذج الجاهزة
+                </Button>
+                <Button variant="outline" className="button-outline" onClick={downloadTemplate}><Download size={16} /> قالب Excel</Button>
+              </div>
+            </div>
+            <div className="intro-visual">
+              <img className="visual-paper" src={PAPER_URL} alt="" />
+              <div className="hero-form-artifact"><img src={FORM_URL} alt="" /><span>نموذج س1</span></div>
+              <div className="visual-overlay"><span>س1</span><b>وثيقة<br />تأمين</b><small>جاهز للطباعة</small></div>
+              <div className="visual-ribbon"><FileSpreadsheet size={17} /><span>Excel → PDF</span></div>
+              <div className="visual-stamp"><Check size={16} /> جاهز</div>
+            </div>
+          </section>
+
+          <section className="summary-strip" aria-label="ملخص السجلات">
+            <span className="summary-spine" aria-hidden="true" />
+            <div className="summary-item"><span className="summary-icon amber"><ClipboardList size={17} /></span><div><strong>{records.length}</strong><span>إجمالي السجلات</span></div></div>
+            <div className="summary-item"><span className="summary-icon green"><BadgeCheck size={17} /></span><div><strong>{readyCount}</strong><span>جاهز للطباعة</span></div></div>
+            <div className="summary-item"><span className="summary-icon gray"><MoreHorizontal size={17} /></span><div><strong>{draftCount}</strong><span>يحتاج مراجعة</span></div></div>
+            <div className="summary-divider" />
+            <div className="summary-hint"><span className="hint-pin" /> آخر تعديل محفوظ في هذه الجلسة</div>
+          </section>
+
+          <section className="workbench-section registry-section">
+            <div className="section-heading-row">
+              <div><p className="section-overline">مسار العمل <span>01 / 03</span></p><h2>أدخل البيانات</h2></div>
+              <div className="heading-tools"><span className="template-pill"><FileText size={14} /> نموذج س1 <ChevronDown size={14} /></span><span className="autosave"><span /> حفظ تلقائي</span></div>
+            </div>
+
+            <Card className="mode-card registry-card">
+              <div className="mode-copy"><div className="mode-icon"><ClipboardList size={18} /></div><div><h3>كيف تريد البدء؟</h3><p>اختر إدخال سجل يدويًا أو حمّل دفعة من Excel.</p></div></div>
+              <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)} className="mode-tabs">
+                <TabsList><TabsTrigger value="manual"><UserRound size={15} /> سجل يدوي</TabsTrigger><TabsTrigger value="bulk"><UsersRound size={15} /> دفعة Excel</TabsTrigger></TabsList>
+              </Tabs>
+            </Card>
+
+            {mode === "bulk" ? (
+              <Card className="upload-card registry-card">
+                <div className="upload-art"><img src={RIBBON_URL} alt="" /><div className="upload-art-label"><FileSpreadsheet size={17} /><span>صفوف منظمة<br /><b>إلى ملفات</b></span></div></div>
+                <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>نقرأ أول ورقة في الملف ونطابق الأعمدة تلقائيًا مع نموذج س1.</p></div><span className="supported-formats">.XLSX / .XLS</span></div>
+                  <div className="upload-actions"><Button className="button-primary" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <CloudUpload size={16} />} اختر ملف Excel</Button><button className="text-link" onClick={downloadTemplate}>نزّل قالب الأعمدة <ArrowLeft size={14} /></button></div>
+                  {fileName && <div className="uploaded-file"><FileSpreadsheet size={16} /><span>{fileName}</span><Check size={15} /></div>}
+                  <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcel} aria-label="رفع ملف Excel" className="file-input-accessible" />
+                </div>
+              </Card>
+            ) : (
+              <div className="manual-callout"><span className="callout-number">A</span><div><strong>ابدأ بسجل واحد</strong><p>اكتب الحقول الأساسية، وستظهر المعاينة الورقية على اليسار لحظة بلحظة.</p></div><ArrowLeft size={16} /></div>
+            )}
+
+            <div className="records-toolbar">
+              <div className="records-title"><UsersRound size={17} /><strong>سجل البيانات</strong><span>{records.length} صف</span></div>
+              <div className="records-actions"><div className="search-wrap"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الرقم..." /></div><Button variant="outline" className="add-button" onClick={addRecord}><Plus size={15} /> إضافة سجل</Button></div>
+            </div>
+
+            <div className="records-table-wrap registry-table">
+              <table className="records-table">
+                <thead><tr><th className="check-cell"><input type="checkbox" aria-label="تحديد الكل" /></th><th>المؤمن عليه</th><th>الرقم القومي</th><th>اسم المنشأة</th><th>اكتمال البيانات</th><th>الحالة</th><th /></tr></thead>
+                <tbody>
+                  {visibleRecords.map((record, index) => {
+                    const status = recordStatus(record);
+                    const isActive = record.id === activeId;
+                    return <tr key={record.id} className={isActive ? "record-row-active" : ""} onClick={() => setActiveId(record.id)}>
+                      <td className="check-cell"><input type="checkbox" checked={isActive} onChange={() => setActiveId(record.id)} onClick={(event) => event.stopPropagation()} aria-label={`تحديد ${record.insuredName || `السجل ${index + 1}`}`} /></td>
+                      <td><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small></div></div></td>
+                      <td className="mono-cell">{record.nationalId || "—"}</td><td>{record.establishmentName || "—"}</td>
+                      <td><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / 30) * 100))}%` }} /></div><small>{filledCount(record)} / 30</small></div></td>
+                      <td><span className={`status-badge ${statusClass(status)}`}><span />{status}</span></td>
+                      <td><button className="row-menu" onClick={(event) => { event.stopPropagation(); removeRecord(record.id); }} aria-label="حذف السجل"><Trash2 size={15} /></button></td>
+                    </tr>;
+                  })}
+                  {!visibleRecords.length && <tr><td colSpan={7} className="empty-table">لا توجد نتائج بهذا البحث.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="editor-layout">
+            <div className="editor-panel">
+              <div className="editor-header"><div><p className="section-overline">السجل المحدد</p><h2>{activeRecord.insuredName || "سجل جديد"}</h2></div><Badge className={`status-badge ${statusClass(recordStatus(activeRecord))}`}><span />{recordStatus(activeRecord)}</Badge></div>
+              <div className="group-tabs" role="tablist" aria-label="أقسام النموذج">
+                {fieldGroups.map((group) => { const Icon = group.icon; return <button key={group.id} className={activeGroup === group.id ? "group-tab-active" : ""} onClick={() => setActiveGroup(group.id)}><span className="group-tab-number">{group.number}</span><Icon size={16} /><span>{group.title}</span></button>; })}
+              </div>
+              <div className="field-groups">
+                {fieldGroups.map((group) => {
+                  const Icon = group.icon;
+                  const visible = activeGroup === group.id;
+                  return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
+                    <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
+                    <div className="fields-grid">
+                      {group.fields.map((field) => <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{field.key === "category" ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)}><option value="">اختر الفئة</option><option>عاملين لدى الغير</option><option>المصريين بالخارج</option><option>أصحاب أعمال</option><option>عمالة غير منتظمة</option></select> : <Input id={field.key} type={field.type || "text"} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} />}</div>)}
+                    </div>
+                  </div>;
+                })}
+              </div>
+              <div className="editor-footer"><span><ShieldCheck size={15} /> المعالجة محلية وآمنة</span><div><Button variant="outline" className="button-outline" onClick={() => setRecords((current) => current.map((record) => record.id === activeId ? { ...makeEmptyRecord(), id: record.id } : record))}>مسح الحقول</Button><Button className="button-primary" onClick={downloadSelected} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <ArrowDownToLine size={16} />} تنزيل PDF</Button></div></div>
+            </div>
+
+            <aside className="preview-panel">
+              <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / 2</span></div>
+              <div className="preview-frame"><div className="preview-paper"><img src={FORM_URL} alt="معاينة نموذج التأمينات" /><div className="preview-data preview-name">{activeRecord.insuredName || "اسم المؤمن عليه"}</div><div className="preview-data preview-establishment">{activeRecord.establishmentName || "اسم المنشأة"}</div><div className="preview-data preview-id">{activeRecord.nationalId || "—"}</div><div className="preview-data preview-date">{activeRecord.startDate || "—"}</div></div><div className="preview-control"><button><ChevronDown size={14} /></button><span>100%</span><button><Plus size={14} /></button></div></div>
+              <div className="preview-note"><div className="note-seal small"><Check size={14} /></div><div><strong>المعاينة تقريبية</strong><p>البيانات ستُوضع داخل الحقول الأصلية عند تنزيل PDF.</p></div></div>
+              <Button className="full-preview-button" variant="outline" onClick={downloadSelected}><Printer size={15} /> معاينة / تنزيل الصفحة</Button>
+            </aside>
+          </section>
+
+          <footer className="app-footer"><span>معبّي © 2026</span><span>نموذج س1 · النسخة الأولى</span><span>مصمم لتسهيل العمل المكتبي</span></footer>
+        </main>
+      </div>
     </div>
   );
 }
