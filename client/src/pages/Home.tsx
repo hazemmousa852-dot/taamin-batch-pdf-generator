@@ -57,10 +57,10 @@ import {
   type TemplateId,
 } from "@/lib/form";
 
-const MARK_URL = "/assets/taamin-mark.png";
-const PAPER_URL = "/assets/taamin-paper-surface.png";
-const RIBBON_URL = "/assets/taamin-spreadsheet-ribbon.png";
-const FORM_URL = "/assets/taamin-form-preview.png";
+const MARK_URL = "/assets/taamin-mark.webp";
+const PAPER_URL = "/assets/taamin-paper-surface.webp";
+const RIBBON_URL = "/assets/taamin-spreadsheet-ribbon.webp";
+const FORM_URL = "/assets/taamin-form-preview.webp";
 const S6_PREVIEW_URL = "/assets/taamin-s6-preview.png";
 
 type EditableKey = Exclude<keyof PersonRecord, "id">;
