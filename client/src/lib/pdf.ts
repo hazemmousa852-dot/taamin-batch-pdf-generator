@@ -6,7 +6,8 @@ import * as reshaperPackage from "arabic-persian-reshaper";
 import JSZip from "jszip";
 import type { PersonRecord, TemplateId } from "./form";
 
-const ASSET_BASE = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const configuredBase = import.meta.env?.BASE_URL ?? "/";
+const ASSET_BASE = configuredBase.endsWith("/") ? configuredBase : `${configuredBase}/`;
 const assetUrl = (name: string) => `${ASSET_BASE}assets/${name}`;
 
 export const TEMPLATE_URLS: Record<TemplateId, string> = {
@@ -18,10 +19,19 @@ const ARABIC_FONT_URL = assetUrl("NotoNaskhArabic-Regular.ttf");
 const ArabicShaper = (reshaperPackage as unknown as { ArabicShaper?: { convertArabic: (value: string) => string } }).ArabicShaper;
 
 const s1TextBindings: Partial<Record<keyof PersonRecord, string[]>> = {
-  office: ["Text55"], establishmentName: ["Text6"], insuredName: ["Text11"], qualification: ["Text14"], profession: ["Text17"], professionCode: ["Text16"], startDate: ["Text15"], country: ["Text31"], city: ["Text30"], governorate: ["Text1"], district: ["Text28"], street: ["Text27"], center: ["Text26"], phone: ["Text45"], email: ["Text44"], employer: ["Text33"], manager: ["Text32"], releaseDate: ["Text50"], basicWage: ["Text19", "Text18"], variableWage: ["Text25"], totalWage: ["Text20"], increaseDate: ["Text22", "Text21"], increasePercent: ["Text23"],
+  office: ["Text55"], establishmentName: ["Text6"], insuredName: ["Text11"], qualification: ["Text14"], profession: ["Text20"],
+  country: ["Text40"], city: ["Text42"], governorate: ["Text47"], district: ["Text39"], street: ["Text44"], center: ["Text46"], employer: ["Text45"],
+  releaseDate: ["Text50"], increasePercent: ["Text37"], contributionCode: ["Text22", "Text21"],
+};
+const s1MoneyBindings: Partial<Record<keyof PersonRecord, string[]>> = {
+  basicWage: ["Text27", "Text26"], variableWage: ["Text1", "Text28"], totalWage: ["Text31", "Text30"],
 };
 const s1BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
-  establishmentNumber: ["Text61", "Text60", "Text59", "Text58", "Text57", "Text56", "Text54", "Text53"], insuranceNumber: ["Text69", "Text68", "Text67", "Text66", "Text65", "Text64", "Text63", "Text62", "Text7"], nationalId: ["Text82", "Text81", "Text80", "Text79", "Text78", "Text77", "Text76", "Text75", "Text74", "Text73", "Text72", "Text71", "Text70", "Text8"],
+  establishmentNumber: ["Text53", "Text54", "Text56", "Text57", "Text58", "Text59", "Text60", "Text61"], insuranceNumber: ["Text7", "Text62", "Text63", "Text64", "Text65", "Text66", "Text67", "Text68", "Text69"], nationalId: ["Text8", "Text70", "Text71", "Text72", "Text73", "Text74", "Text75", "Text76", "Text77", "Text78", "Text79", "Text80", "Text81", "Text82"],
+};
+const s1DateBindings: Partial<Record<keyof PersonRecord, string[]>> = {
+  startDate: ["Text15", "Text16", "Text17"],
+  increaseDate: ["Text34", "Text35", "Text36"],
 };
 const s6TextBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   office: ["بتكم"], applicantRole: [":بلطلا مدقم ةفص"], applicantName: [":بلطلا مدقم ةفص_1"], applicantPhone: [":نوفيلتلا مقر"], insuredName: ["Text Field1"], establishmentName: [":هأشنلما مسا", ":هأشنلما مسا_1", "Text Field5"], address: ["Text Field6"], endReason: ["fill_1"],
@@ -44,6 +54,8 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   try { textField.setText(toPdfText(value)); textField.setFontSize(Math.max(7, Math.min(11, value.length > 22 ? 8 : 10))); textField.updateAppearances(font); } catch { /* continue with the remaining fields */ }
 }
 function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const digits = cleanDigits(rawValue); names.forEach((name, index) => setText(form, name, digits[index] ?? "", font)); }
+function setDateFields(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const parts = rawValue.includes("-") ? rawValue.split("-").reverse() : cleanDigits(rawValue).match(/\d{1,4}/g) ?? []; names.forEach((name, index) => setText(form, name, parts[index] ?? "", font)); }
+function setMoneyFields(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) { const [whole, fraction = ""] = String(rawValue).replace(/[,،]/g, ".").split("."); setText(form, names[0], whole, font); if (names[1]) setText(form, names[1], fraction.padEnd(2, "0").slice(0, 2), font); }
 function setCheckboxes(form: ReturnType<PDFDocument["getForm"]>, category: string) { Object.entries(checkboxBindings.category ?? {}).forEach(([label, fieldName]) => { const checkbox = field(form, fieldName, (current, name) => current.getCheckBox(name)); if (!checkbox) return; try { label === category ? checkbox.check() : checkbox.uncheck(); } catch { /* non-standard appearance state */ } }); }
 
 export async function fillPdf(record: PersonRecord, template: TemplateId = "s1") {
@@ -58,6 +70,10 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
   const boxBindings = template === "s6" ? s6BoxBindings : s1BoxBindings;
   (Object.keys(textBindings) as Array<keyof PersonRecord>).forEach((key) => { const value = record[key]; if (value) (textBindings[key] ?? []).forEach((name) => setText(form, name, value, arabicFont)); });
   (Object.keys(boxBindings) as Array<keyof PersonRecord>).forEach((key) => { const value = record[key]; if (value) setBoxes(form, boxBindings[key] ?? [], value, arabicFont); });
+  if (template === "s1") {
+    (Object.keys(s1DateBindings) as Array<keyof PersonRecord>).forEach((key) => { const value = record[key]; if (value) setDateFields(form, s1DateBindings[key] ?? [], value, arabicFont); });
+    (Object.keys(s1MoneyBindings) as Array<keyof PersonRecord>).forEach((key) => { const value = record[key]; if (value) setMoneyFields(form, s1MoneyBindings[key] ?? [], value, arabicFont); });
+  }
   if (template === "s6") {
     setText(form, "موقلا مقري", record.applicantNationalId, arabicFont);
     setText(form, ": يـموقلا مقرلا", record.nationalId, arabicFont);
