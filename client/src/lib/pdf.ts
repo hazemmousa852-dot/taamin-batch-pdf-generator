@@ -76,11 +76,12 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   if (maxLength && normalized.length > maxLength) textField.removeMaxLength();
   textField.setText(toPdfText(normalized));
   textField.setAlignment(alignment);
-  const fontSize = Math.max(7, Math.min(11, normalized.length > 28 ? 7 : normalized.length > 20 ? 8 : 10));
-  // Some official form fields do not define a default appearance (/DA).
-  // pdf-lib's setFontSize then throws "No Tf operator found" even though
-  // updateAppearances below can create a valid appearance with our Arabic font.
-  try { textField.setFontSize(fontSize); } catch { /* let updateAppearances auto-size this field */ }
+  const fontSize = normalized.length > 40 ? 8 : normalized.length > 28 ? 9 : normalized.length > 18 ? 10 : 11;
+  // Several fields in the official form have no /DA entry. Without it,
+  // pdf-lib silently falls back to auto-sizing and Arabic becomes extremely
+  // small. Seed a valid appearance first, then apply a consistent readable size.
+  if (!textField.acroField.getDefaultAppearance()) textField.acroField.setDefaultAppearance("/Helv 11 Tf 0 g");
+  textField.setFontSize(fontSize);
   textField.updateAppearances(font);
 }
 function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) {
