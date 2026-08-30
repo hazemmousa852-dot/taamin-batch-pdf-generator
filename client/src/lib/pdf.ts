@@ -146,3 +146,14 @@ export async function createZip(records: PersonRecord[], template: TemplateId = 
   return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
 }
 
+export async function createMergedPdf(records: PersonRecord[], template: TemplateId = "s1", onProgress?: (done: number, total: number) => void) {
+  const merged = await PDFDocument.create();
+  for (let index = 0; index < records.length; index += 1) {
+    const source = await PDFDocument.load(await fillPdf(records[index], template));
+    const pages = await merged.copyPages(source, source.getPageIndices());
+    pages.forEach((page) => merged.addPage(page));
+    onProgress?.(index + 1, records.length);
+  }
+  return merged.save({ useObjectStreams: false });
+}
+
