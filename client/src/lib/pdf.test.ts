@@ -25,6 +25,11 @@ const record = {
 };
 
 describe("official PDF field maps", () => {
+  it("orders complete Arabic phrases correctly for PDF appearance streams", () => {
+    expect(toPdfText("اسم المؤمن عليه")).toBe("ﻪﻴﻠﻋ ﻦﻣﺆﻤﻟﺍ ﻢﺳﺍ");
+    expect(toPdfText("محمد 2026")).toContain("2026");
+  });
+
   it("places S1 Arabic text and dates in their visual fields", async () => {
     const doc = await PDFDocument.load(await fillPdf(record, "s1"));
     const form = doc.getForm();
