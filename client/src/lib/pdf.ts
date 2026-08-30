@@ -1,4 +1,4 @@
-import { PDFDocument, TextAlignment, type PDFFont } from "pdf-lib";
+import { PDFDocument, PDFHexString, TextAlignment, type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import * as reshaperPackage from "arabic-persian-reshaper";
 import JSZip from "jszip";
@@ -113,6 +113,11 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
     textField.setFontSize(fontSize);
   }
   textField.updateAppearances(font);
+  // Keep the canonical field value as normal Unicode Arabic. The appearance
+  // stream above retains the shaped visual glyphs required by PDF renderers,
+  // while copying/searching/reading the field now returns "اسم المؤمن عليه"
+  // instead of Arabic Presentation Forms such as "ﻢﺳﺍ".
+  textField.acroField.setValue(PDFHexString.fromText(normalized));
 }
 function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) {
   const digits = cleanDigits(rawValue);
