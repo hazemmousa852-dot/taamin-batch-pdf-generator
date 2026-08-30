@@ -118,7 +118,9 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     for (const key of Object.keys(s1MoneyBindings) as Array<keyof PersonRecord>) if (record[key]) setMoneyFields(form, s1MoneyBindings[key] ?? [], record[key], arabicFont);
     if (record.category) setCheckboxes(form, record.category);
   } else if (record.endDate) setDateFields(form, ["Text Field2", "Text Field3", "Text Field4"], record.endDate, arabicFont);
-  form.updateFieldAppearances(arabicFont);
+  // Every populated text field is updated in setText. Avoid updating every
+  // field in the source PDF here: some unused official fields have no /DA
+  // font operator and make pdf-lib throw "No Tf operator found".
   return pdfDoc.save({ useObjectStreams: false });
 }
 
