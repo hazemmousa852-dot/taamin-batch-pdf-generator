@@ -60,7 +60,19 @@ function hasArabic(value: string) { return /[\u0600-\u06ff]/.test(value); }
 export function toPdfText(rawValue: string) {
   const value = normalizeText(rawValue);
   if (!value || !hasArabic(value) || !ArabicShaper) return value;
-  return value.split(/([0-9A-Za-z@%/().,\-+ ]+)/).map((part) => hasArabic(part) ? ArabicShaper.convertArabic(part).split("").reverse().join("") : part).join("");
+  // PDF appearance streams paint glyphs from left to right. Shape the whole
+  // Arabic sentence, then reverse the complete visual run (including word
+  // order). Keep Latin text and numbers protected so their characters do not
+  // get reversed, e.g. 2026 and phone numbers remain readable.
+  const protectedTokens: string[] = [];
+  const masked = value.replace(/[0-9A-Za-z@%/().,\-+]+/g, (token) => {
+    const marker = String.fromCharCode(0xe000 + protectedTokens.length);
+    protectedTokens.push(token);
+    return marker;
+  });
+  const shaped = ArabicShaper.convertArabic(masked);
+  const visualOrder = Array.from(shaped).reverse().join("");
+  return visualOrder.replace(/[\ue000-\uf8ff]/g, (marker) => protectedTokens[marker.charCodeAt(0) - 0xe000] ?? marker);
 }
 function cleanDigits(value: string) { return normalizeDigits(value).replace(/\D/g, ""); }
 function getTextField(form: ReturnType<PDFDocument["getForm"]>, name: string) {
