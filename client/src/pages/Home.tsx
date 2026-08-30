@@ -117,13 +117,16 @@ const fieldGroups: FieldGroup[] = [
     fields: [
       { key: "establishmentName", label: "اسم المنشأة", placeholder: "اسم الشركة أو المنشأة" },
       { key: "establishmentNumber", label: "رقم المنشأة", placeholder: "رقم المنشأة", type: "number" },
+      { key: "establishmentType", label: "نوع المنشأة", placeholder: "اختر نوع المنشأة" },
       { key: "office", label: "المكتب", placeholder: "مكتب التأمينات" },
       { key: "profession", label: "المهنة", placeholder: "المسمى الوظيفي" },
       { key: "professionCode", label: "كود المهنة", placeholder: "الكود" },
+      { key: "sector", label: "القطاع", placeholder: "القطاع التابع له" },
       { key: "qualification", label: "المؤهل", placeholder: "المؤهل الدراسي" },
       { key: "startDate", label: "تاريخ بدء الاشتراك", placeholder: "تاريخ البدء", type: "date" },
       { key: "contributionCode", label: "كود الاشتراك", placeholder: "كود الاشتراك" },
       { key: "workType", label: "نوع المدة", placeholder: "نوع المدة" },
+      { key: "medicalExam", label: "الكشف الطبي الابتدائي", placeholder: "نعم / لا" },
     ],
   },
   {
@@ -133,7 +136,7 @@ const fieldGroups: FieldGroup[] = [
     note: "الأرقام تُحفظ كما أدخلتها وتُنسخ إلى خانات النموذج",
     icon: Hash,
     fields: [
-      { key: "basicWage", label: "الأجر الأساسي", placeholder: "0.00", type: "number" },
+      { key: "basicWage", label: "أجر / دخل الاشتراك", placeholder: "0.00", type: "number" },
       { key: "variableWage", label: "الأجر المتغير", placeholder: "0.00", type: "number" },
       { key: "totalWage", label: "الأجر الشامل", placeholder: "0.00", type: "number" },
       { key: "increaseDate", label: "تاريخ بداية العجز / الزيادة", placeholder: "التاريخ", type: "date" },
@@ -150,6 +153,7 @@ const fieldGroups: FieldGroup[] = [
       { key: "country", label: "الجنسية", placeholder: "مثال: مصري" },
       { key: "city", label: "المدينة", placeholder: "المدينة" },
       { key: "governorate", label: "المحافظة", placeholder: "المحافظة" },
+      { key: "buildingNumber", label: "رقم العقار", placeholder: "رقم العقار", type: "number" },
       { key: "district", label: "الشياخة / القرية", placeholder: "الشياخة أو القرية" },
       { key: "street", label: "الشارع", placeholder: "اسم الشارع" },
       { key: "center", label: "القسم / المركز", placeholder: "القسم أو المركز" },
@@ -184,9 +188,9 @@ const fieldGroups: FieldGroup[] = [
 const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
   s1: new Set([
     "insuredName", "nationalId", "insuranceNumber", "category", "country", "establishmentName",
-    "establishmentNumber", "office", "profession", "qualification", "startDate", "contributionCode",
-    "workType", "basicWage", "totalWage", "increaseDate", "increasePercent", "governorate",
-    "district", "street", "center", "phone", "address", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
+    "establishmentNumber", "establishmentType", "office", "profession", "sector", "qualification", "startDate", "contributionCode",
+    "workType", "medicalExam", "basicWage", "totalWage", "increaseDate", "increasePercent", "governorate",
+    "buildingNumber", "district", "street", "center", "phone", "address", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
   ]),
   s6: new Set([
     "insuredName", "nationalId", "insuranceNumber", "establishmentName", "establishmentNumber", "office",
@@ -195,12 +199,17 @@ const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
 };
 const IDENTIFIER_FIELDS = new Set<EditableKey>([
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
-  "professionCode", "contributionCode", "phone", "applicantPhone",
+  "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
 ]);
 const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
-  "office", "establishmentName", "establishmentNumber", "address",
+  "office", "establishmentName", "establishmentNumber", "establishmentType", "address",
   "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
 ]);
+const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
+  category: ["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"],
+  medicalExam: ["نعم", "لا"],
+  establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
+};
 function initials(value: string) {
   return value
     .trim()
@@ -561,7 +570,7 @@ export default function Home() {
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
                     <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
                     <div className="fields-grid">
-                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{field.key === "category" ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">اختر الفئة</option><option>عاملين لدى الغير</option><option>أصحاب أعمال</option><option>عمالة غير منتظمة</option></select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : undefined} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && activeRecord[field.key] && <span className="field-error">{issue}</span>}</div>; })}
+                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : undefined} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && activeRecord[field.key] && <span className="field-error">{issue}</span>}</div>; })}
                     </div>
                   </div>;
                 })}
