@@ -92,7 +92,14 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   // pdf-lib silently falls back to auto-sizing and Arabic becomes extremely
   // small. Seed a valid appearance first, then apply a consistent readable size.
   if (!textField.acroField.getDefaultAppearance()) textField.acroField.setDefaultAppearance("/Helv 12 Tf 0 g");
-  textField.setFontSize(fontSize);
+  try {
+    textField.setFontSize(fontSize);
+  } catch {
+    // A few official fields contain a /DA string but omit the required Tf
+    // operator. Replace that malformed appearance and retry with our size.
+    textField.acroField.setDefaultAppearance(`/Helv ${fontSize} Tf 0 g`);
+    textField.setFontSize(fontSize);
+  }
   textField.updateAppearances(font);
 }
 function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) {
