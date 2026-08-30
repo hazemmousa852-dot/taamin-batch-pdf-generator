@@ -43,6 +43,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  createMergedPdf,
   createZip,
   downloadBlob,
   fillPdf,
@@ -196,6 +197,10 @@ const IDENTIFIER_FIELDS = new Set<EditableKey>([
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone",
 ]);
+const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
+  "office", "establishmentName", "establishmentNumber", "address",
+  "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
+]);
 function initials(value: string) {
   return value
     .trim()
@@ -308,9 +313,16 @@ export default function Home() {
     setIsProcessing(true);
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-      const imported = rows.map(mapExcelRow).filter((record) => filledCount(record) > 0);
+      const peopleSheet = workbook.Sheets["بيانات المؤمن عليهم"] ?? workbook.Sheets[workbook.SheetNames.at(-1)!];
+      const sharedSheet = workbook.Sheets["بيانات المنشأة والمفوض"];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(peopleSheet, { defval: "" });
+      const sharedRow = sharedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sharedSheet, { defval: "" })[0] : undefined;
+      const sharedRecord = sharedRow ? mapExcelRow(sharedRow) : undefined;
+      const imported = rows.map((row) => {
+        const record = mapExcelRow(row);
+        if (sharedRecord) for (const key of SHARED_EXCEL_FIELDS) if (!record[key] && sharedRecord[key]) record[key] = sharedRecord[key];
+        return record;
+      }).filter((record) => filledCount(record) > 0);
       if (!imported.length) {
         toast.error("لم نجد صفوفًا قابلة للاستيراد", { description: "تأكد من أن الصف الأول يحتوي على أسماء الأعمدة." });
         return;
@@ -329,13 +341,21 @@ export default function Home() {
   }
 
   function downloadTemplate() {
-    const worksheet = XLSX.utils.aoa_to_sheet([
-      EXCEL_HEADERS.map((item) => item.label),
-      EXCEL_HEADERS.map(() => ""),
+    const sharedHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
+    const personHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && TEMPLATE_FIELDS[template].has(item.key as EditableKey) && !SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
+    const sharedSheet = XLSX.utils.aoa_to_sheet([
+      sharedHeaders.map((item) => item.label),
+      sharedHeaders.map(() => ""),
     ]);
-    worksheet["!cols"] = EXCEL_HEADERS.map(() => ({ wch: 22 }));
+    const peopleSheet = XLSX.utils.aoa_to_sheet([
+      personHeaders.map((item) => item.label),
+      personHeaders.map(() => ""),
+    ]);
+    sharedSheet["!cols"] = sharedHeaders.map(() => ({ wch: 24 }));
+    peopleSheet["!cols"] = personHeaders.map(() => ({ wch: 22 }));
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "بيانات المؤمن عليهم");
+    XLSX.utils.book_append_sheet(workbook, sharedSheet, "بيانات المنشأة والمفوض");
+    XLSX.utils.book_append_sheet(workbook, peopleSheet, "بيانات المؤمن عليهم");
     const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     downloadBlob(data, "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     toast.success("تم تنزيل قالب Excel");
@@ -359,22 +379,40 @@ export default function Home() {
     }
   }
 
+  function validBatch() {
+    return records.filter((record) => recordStatus(record, template) === "جاهز");
+  }
+
   async function downloadAll() {
-    const validRecords = records.filter((record) => recordStatus(record, template) === "جاهز");
+    const validRecords = validBatch();
     if (!validRecords.length) {
       toast.error("لا توجد سجلات مكتملة", { description: "أكمل الاسم والرقم القومي واسم المنشأة أولًا." });
       return;
     }
     setIsProcessing(true);
     try {
-      const zip = await createZip(validRecords, template);
-      downloadBlob(zip, `نماذج-التأمينات-${new Date().toISOString().slice(0, 10)}.zip`, "application/zip");
-      toast.success(`تم تجهيز ${validRecords.length} نموذجًا`, { description: "تم جمع الملفات داخل ZIP واحد." });
+      const pdf = await createMergedPdf(validRecords, template);
+      downloadBlob(pdf, `نماذج-التأمينات-مجمعة-${new Date().toISOString().slice(0, 10)}.pdf`, "application/pdf");
+      const skipped = records.length - validRecords.length;
+      toast.success(`تم دمج ${validRecords.length} نموذجًا`, { description: skipped ? `تم استبعاد ${skipped} سجل ناقص.` : "كل النماذج مرتبة داخل PDF واحد." });
     } catch (error) {
       toast.error("تعذر تجهيز الدفعة", { description: error instanceof Error ? error.message : "حاول مرة أخرى." });
     } finally {
       setIsProcessing(false);
     }
+  }
+
+  async function downloadSeparateZip() {
+    const validRecords = validBatch();
+    if (!validRecords.length) { toast.error("لا توجد سجلات مكتملة"); return; }
+    setIsProcessing(true);
+    try {
+      const zip = await createZip(validRecords, template);
+      downloadBlob(zip, `نماذج-التأمينات-منفصلة-${new Date().toISOString().slice(0, 10)}.zip`, "application/zip");
+      toast.success(`تم تجهيز ${validRecords.length} ملف PDF منفصل`);
+    } catch (error) {
+      toast.error("تعذر تجهيز الملفات المنفصلة", { description: error instanceof Error ? error.message : "حاول مرة أخرى." });
+    } finally { setIsProcessing(false); }
   }
 
   return (
@@ -433,8 +471,9 @@ export default function Home() {
               <div className="intro-actions">
                 <Button className="button-primary" onClick={downloadAll} disabled={isProcessing}>
                   {isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />}
-                  تجهيز النماذج الجاهزة
+                  تنزيل PDF مجمّع
                 </Button>
+                <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>
                 <Button variant="outline" className="button-outline" onClick={downloadTemplate}><Download size={16} /> قالب Excel</Button>
               </div>
             </div>
@@ -472,10 +511,10 @@ export default function Home() {
             {mode === "bulk" ? (
               <Card className="upload-card registry-card">
                 <div className="upload-art"><img src={RIBBON_URL} alt="" /><div className="upload-art-label"><FileSpreadsheet size={17} /><span>صفوف منظمة<br /><b>إلى ملفات</b></span></div></div>
-                <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>نقرأ أول ورقة في الملف ونطابق الأعمدة تلقائيًا مع {TEMPLATE_LABELS[template]}.</p></div><span className="supported-formats">.XLSX / .XLS / .CSV</span></div>
+                <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>نقرأ بيانات المنشأة والمفوّض مرة واحدة، ثم ننشئ نموذجًا لكل صف في شيت المؤمن عليهم.</p></div><span className="supported-formats">.XLSX / .XLS</span></div>
                   <div className="upload-actions"><Button className="button-primary" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <CloudUpload size={16} />} اختر ملف Excel</Button><button className="text-link" onClick={downloadTemplate}>نزّل قالب الأعمدة <ArrowLeft size={14} /></button></div>
                   {fileName && <div className="uploaded-file"><FileSpreadsheet size={16} /><span>{fileName}</span><Check size={15} /></div>}
-                  <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcel} aria-label="رفع ملف Excel" className="file-input-accessible" />
+                  <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleExcel} aria-label="رفع ملف Excel" className="file-input-accessible" />
                 </div>
               </Card>
             ) : (
