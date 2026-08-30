@@ -15,7 +15,7 @@ beforeAll(() => {
 
 const record = {
   ...makeEmptyRecord(), office: "مكتب القاهرة", applicantName: "أحمد محمد", applicantRole: "صاحب العمل",
-  applicantPhone: "01012345678", applicantNationalId: "29001010123456", insuredName: "محمد أحمد علي",
+  applicantInsuranceNumber: "009876543", applicantPhone: "01012345678", applicantNationalId: "29001010123456", insuredName: "محمد أحمد علي",
   insuranceNumber: "001234567", nationalId: "29501010123456", qualification: "بكالوريوس تجارة",
   profession: "محاسب", country: "مصري", category: "عاملين لدى الغير", contributionCode: "12",
   workType: "دائمة", startDate: "2024-05-19", basicWage: "2500", totalWage: "4000",
@@ -30,6 +30,7 @@ describe("official PDF field maps", () => {
     const form = doc.getForm();
     expect(form.getTextField(": ةفصبلطلا مدقم_1").getText()).toBe(toPdfText(record.applicantName));
     expect(form.getTextField("Text Field6").getText()).toBe(toPdfText(record.applicantRole));
+    expect(form.getTextField("Text Field3").getText()).toBe(record.applicantInsuranceNumber);
     expect(form.getTextField("ةنهلما_1").getText()).toBe(toPdfText(record.qualification));
     expect(form.getTextField("ةنهلما").getText()).toBe(toPdfText(record.profession));
     expect(form.getTextField("Text Field10").getText()).toBe("19");
@@ -42,7 +43,7 @@ describe("official PDF field maps", () => {
   it("places S6 repeated values and date in the correct fields", async () => {
     const doc = await PDFDocument.load(await fillPdf(record, "s6"));
     const form = doc.getForm();
-    expect(form.getTextField("Text Field0").getText()).toBe(record.insuranceNumber);
+    expect(form.getTextField("Text Field0").getText()).toBe(record.applicantInsuranceNumber);
     expect(form.getTextField("Text Field2").getText()).toBe("21");
     expect(form.getTextField("Text Field3").getText()).toBe("07");
     expect(form.getTextField("Text Field4").getText()).toBe("2025");
