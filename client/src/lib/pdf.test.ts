@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { PDFDocument } from "pdf-lib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { makeEmptyRecord } from "./form";
-import { fillPdf, safeFileName, toPdfText } from "./pdf";
+import { createMergedPdf, fillPdf, safeFileName, toPdfText } from "./pdf";
 
 beforeAll(() => {
   vi.stubGlobal("fetch", async (url: string | URL) => {
@@ -55,6 +55,11 @@ describe("official PDF field maps", () => {
   it("always creates unique, filesystem-safe names", () => {
     expect(safeFileName(record, 1, "s1")).not.toBe(safeFileName(record, 2, "s1"));
     expect(safeFileName(record, 1, "s1")).toMatch(/^س1-/);
+  });
+
+  it("merges every generated form in record order", async () => {
+    const merged = await PDFDocument.load(await createMergedPdf([record, { ...record, insuredName: "شخص ثان" }], "s6"));
+    expect(merged.getPageCount()).toBe(4);
   });
 });
 
