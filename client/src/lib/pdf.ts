@@ -71,7 +71,11 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   if (maxLength && normalized.length > maxLength) throw new Error(`القيمة أطول من مساحة الحقل (${name}): الحد الأقصى ${maxLength}`);
   textField.setText(toPdfText(normalized));
   textField.setAlignment(alignment);
-  textField.setFontSize(Math.max(7, Math.min(11, normalized.length > 28 ? 7 : normalized.length > 20 ? 8 : 10)));
+  const fontSize = Math.max(7, Math.min(11, normalized.length > 28 ? 7 : normalized.length > 20 ? 8 : 10));
+  // Some official form fields do not define a default appearance (/DA).
+  // pdf-lib's setFontSize then throws "No Tf operator found" even though
+  // updateAppearances below can create a valid appearance with our Arabic font.
+  try { textField.setFontSize(fontSize); } catch { /* let updateAppearances auto-size this field */ }
   textField.updateAppearances(font);
 }
 function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) {
