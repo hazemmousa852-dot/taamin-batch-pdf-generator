@@ -33,17 +33,17 @@ describe("official PDF field maps", () => {
   it("places S1 Arabic text and dates in their visual fields", async () => {
     const doc = await PDFDocument.load(await fillPdf(record, "s1"));
     const form = doc.getForm();
-    expect(form.getTextField(": ةفصبلطلا مدقم_1").getText()).toBe(toPdfText(record.applicantName));
-    expect(form.getTextField("Text Field6").getText()).toBe(toPdfText(record.applicantRole));
+    expect(form.getTextField(": ةفصبلطلا مدقم_1").getText()).toBe(record.applicantName);
+    expect(form.getTextField("Text Field6").getText()).toBe(record.applicantRole);
     expect(form.getTextField("Text Field3").getText()).toBe(record.applicantInsuranceNumber);
-    expect(form.getTextField("ةنهلما_1").getText()).toBe(toPdfText(record.qualification));
-    expect(form.getTextField("ةنهلما").getText()).toBe(toPdfText(record.profession));
+    expect(form.getTextField("ةنهلما_1").getText()).toBe(record.qualification);
+    expect(form.getTextField("ةنهلما").getText()).toBe(record.profession);
     expect(form.getTextField("Text Field10").getText()).toBe("19");
     expect(form.getTextField("Text Field9").getText()).toBe("05");
     expect(form.getTextField("Text Field8").getText()).toBe("2024");
-    expect(form.getTextField("fill_6").getText()).toBe(toPdfText(record.workType));
+    expect(form.getTextField("fill_6").getText()).toBe(record.workType);
     expect(form.getTextField("fill_7").getText()).toBe("12");
-    expect(form.getTextField(": عاطقلا").getText()).toBe(toPdfText(record.sector));
+    expect(form.getTextField(": عاطقلا").getText()).toBe(record.sector);
     expect(form.getTextField("fill_5").getText()).toBe(record.buildingNumber);
     expect(form.getCheckBox("ئادتبلاا بيطلا فشكلا ءافيتساي").isChecked()).toBe(true);
     expect(form.getCheckBox("أشنلما عونةطنم :ي").isChecked()).toBe(true);
@@ -56,7 +56,7 @@ describe("official PDF field maps", () => {
     expect(form.getTextField("Text Field2").getText()).toBe("21");
     expect(form.getTextField("Text Field3").getText()).toBe("07");
     expect(form.getTextField("Text Field4").getText()).toBe("2025");
-    expect(form.getTextField("Text Field6").getText()).toBe(toPdfText(record.address));
+    expect(form.getTextField("Text Field6").getText()).toBe(record.address);
     expect(form.getTextField(":نييمأتلا اهمقر").getText()).toBe(record.establishmentNumber);
     expect(form.getTextField("ا: هيلع نمؤلما مــــــــس---------------------------------------:نييمأتلا همقر").getText()).toBe(record.insuranceNumber);
   });
