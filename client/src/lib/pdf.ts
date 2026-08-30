@@ -55,9 +55,11 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   const textField = field<PDFTextField>(form, name, (current, fieldName) => current.getTextField(fieldName));
   if (!textField) return;
   try {
-    textField.setText(toPdfText(value));
+    const maxLength = typeof textField.getMaxLength === "function" ? textField.getMaxLength() : undefined;
+    const fittedValue = maxLength && value.length > maxLength ? value.slice(0, maxLength) : value;
+    textField.setText(toPdfText(fittedValue));
     textField.setAlignment(alignment);
-    textField.setFontSize(Math.max(7, Math.min(11, value.length > 28 ? 7 : value.length > 20 ? 8 : 10)));
+    textField.setFontSize(Math.max(7, Math.min(11, fittedValue.length > 28 ? 7 : fittedValue.length > 20 ? 8 : 10)));
     textField.updateAppearances(font);
   } catch { /* continue with the remaining fields */ }
 }
