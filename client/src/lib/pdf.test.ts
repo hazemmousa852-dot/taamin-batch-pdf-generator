@@ -17,10 +17,10 @@ const record = {
   ...makeEmptyRecord(), office: "مكتب القاهرة", applicantName: "أحمد محمد", applicantRole: "صاحب العمل",
   applicantInsuranceNumber: "009876543210", applicantPhone: "01012345678", applicantNationalId: "29001010123456", insuredName: "محمد أحمد علي",
   insuranceNumber: "001234567", nationalId: "29501010123456", qualification: "بكالوريوس تجارة",
-  profession: "محاسب", country: "مصري", category: "عاملين لدى الغير", contributionCode: "12",
+  profession: "محاسب", sector: "خاص", country: "مصري", category: "عاملين لدى الغير", medicalExam: "نعم", contributionCode: "12",
   workType: "دائمة", startDate: "2024-05-19", basicWage: "2500", totalWage: "4000",
   increaseDate: "2025-06-20", increasePercent: "10", establishmentName: "شركة الاختبار",
-  establishmentNumber: "001234567", governorate: "القاهرة", district: "الزمالك", street: "النيل",
+  establishmentNumber: "001234567", establishmentType: "نمطي", governorate: "القاهرة", buildingNumber: "12", district: "الزمالك", street: "النيل",
   center: "قصر النيل", phone: "01011111111", address: "١ شارع النيل - القاهرة", endDate: "2025-07-21", endReason: "انتهاء الخدمة",
 };
 
@@ -38,6 +38,10 @@ describe("official PDF field maps", () => {
     expect(form.getTextField("Text Field8").getText()).toBe("2024");
     expect(form.getTextField("fill_6").getText()).toBe(toPdfText(record.workType));
     expect(form.getTextField("fill_7").getText()).toBe("12");
+    expect(form.getTextField(": عاطقلا").getText()).toBe(toPdfText(record.sector));
+    expect(form.getTextField("fill_5").getText()).toBe(record.buildingNumber);
+    expect(form.getCheckBox("ئادتبلاا بيطلا فشكلا ءافيتساي").isChecked()).toBe(true);
+    expect(form.getCheckBox("أشنلما عونةطنم :ي").isChecked()).toBe(true);
   });
 
   it("places S6 repeated values and date in the correct fields", async () => {
