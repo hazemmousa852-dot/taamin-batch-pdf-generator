@@ -15,7 +15,7 @@ beforeAll(() => {
 
 const record = {
   ...makeEmptyRecord(), office: "مكتب القاهرة", applicantName: "أحمد محمد", applicantRole: "صاحب العمل",
-  applicantInsuranceNumber: "009876543", applicantPhone: "01012345678", applicantNationalId: "29001010123456", insuredName: "محمد أحمد علي",
+  applicantInsuranceNumber: "009876543210", applicantPhone: "01012345678", applicantNationalId: "29001010123456", insuredName: "محمد أحمد علي",
   insuranceNumber: "001234567", nationalId: "29501010123456", qualification: "بكالوريوس تجارة",
   profession: "محاسب", country: "مصري", category: "عاملين لدى الغير", contributionCode: "12",
   workType: "دائمة", startDate: "2024-05-19", basicWage: "2500", totalWage: "4000",
