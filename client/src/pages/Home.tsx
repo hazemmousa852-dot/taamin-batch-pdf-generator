@@ -1,7 +1,9 @@
 // Design reminder: this page is a neo-editorial registry desk—warm paper surfaces, amber actions, charcoal ink, and document-first hierarchy.
 
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import * as XLSX from "xlsx";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -64,6 +66,7 @@ const PAPER_URL = assetUrl("taamin-paper-surface.webp");
 const RIBBON_URL = assetUrl("taamin-spreadsheet-ribbon.webp");
 const FORM_URL = assetUrl("taamin-form-preview.webp");
 const S6_PREVIEW_URL = assetUrl("taamin-s6-preview.png");
+GlobalWorkerOptions.workerSrc = workerSrc;
 
 type EditableKey = Exclude<keyof PersonRecord, "id">;
 type Mode = "manual" | "bulk";
@@ -194,10 +197,38 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [fileName, setFileName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState("");
+  const [previewState, setPreviewState] = useState<"loading" | "ready" | "error">("loading");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const activeRecord = records.find((record) => record.id === activeId) ?? records[0];
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setPreviewState("loading");
+      try {
+        const data = await fillPdf(activeRecord, template);
+        if (cancelled) return;
+        const pdf = await getDocument({ data: new Uint8Array(data) }).promise;
+        const page = await pdf.getPage(1);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const targetWidth = 460;
+        const viewport = page.getViewport({ scale: targetWidth / baseViewport.width });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("تعذر تجهيز سطح المعاينة");
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+        if (cancelled) return;
+        setPreviewImage(canvas.toDataURL("image/png"));
+        setPreviewState("ready");
+      } catch {
+        if (!cancelled) setPreviewState("error");
+      }
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [activeRecord, template]);
   const readyCount = records.filter((record) => recordStatus(record) === "جاهز").length;
   const draftCount = records.filter((record) => recordStatus(record) !== "جاهز").length;
   const availableGroups = useMemo(() => template === "s6" ? fieldGroups : fieldGroups.filter((group) => group.id !== "s6"), [template]);
@@ -467,8 +498,8 @@ export default function Home() {
 
             <aside className="preview-panel">
               <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / 2</span></div>
-              <div className="preview-frame"><div className="preview-paper"><img src={template === "s6" ? S6_PREVIEW_URL : FORM_URL} alt={`معاينة ${TEMPLATE_LABELS[template]}`} /><div className="preview-data preview-name">{activeRecord.insuredName || "اسم المؤمن عليه"}</div><div className="preview-data preview-establishment">{activeRecord.establishmentName || "اسم المنشأة"}</div><div className="preview-data preview-id">{activeRecord.nationalId || "—"}</div><div className="preview-data preview-date">{activeRecord.startDate || "—"}</div></div><div className="preview-control"><button><ChevronDown size={14} /></button><span>100%</span><button><Plus size={14} /></button></div></div>
-              <div className="preview-note"><div className="note-seal small"><Check size={14} /></div><div><strong>المعاينة تقريبية</strong><p>البيانات ستُوضع داخل الحقول الأصلية عند تنزيل PDF.</p></div></div>
+              <div className="preview-frame"><div className="preview-paper preview-pdf-paper">{previewImage ? <img className="preview-rendered-image" src={previewImage} alt={`معاينة ${TEMPLATE_LABELS[template]} بالبيانات الحالية`} /> : <div className="preview-loading">{previewState === "error" ? "تعذر إنشاء المعاينة" : "جاري تجهيز النموذج..."}</div>}</div><div className="preview-control"><button aria-label="تصغير المعاينة"><ChevronDown size={14} /></button><span>100%</span><button aria-label="تكبير المعاينة"><Plus size={14} /></button></div></div>
+              <div className="preview-note"><div className="note-seal small"><Check size={14} /></div><div><strong>معاينة القالب الأصلي</strong><p>تُعرض الصفحة الأولى من PDF الفعلي بالبيانات الحالية، ويمكن تنزيل الملف كاملًا من الزر أدناه.</p></div></div>
               <Button className="full-preview-button" variant="outline" onClick={downloadSelected}><Printer size={15} /> معاينة / تنزيل الصفحة</Button>
             </aside>
           </section>

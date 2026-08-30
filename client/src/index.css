@@ -265,6 +265,10 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
 .preview-frame { margin-top: 20px; padding: 16px; background: #e8e4db; border: 1px solid #dfdbd1; }
 .preview-paper { position: relative; background: #fffdfa; box-shadow: 0 9px 19px rgba(55,50,40,.13); overflow: hidden; }
 .preview-paper img { width: 100%; display: block; aspect-ratio: 612 / 1008; object-fit: cover; }
+.preview-pdf-paper { min-height: 520px; }
+.preview-pdf-paper iframe { display: block; width: 100%; height: 520px; border: 0; background: #fff; }
+.preview-pdf-paper .preview-rendered-image { width: 100%; height: auto; display: block; object-fit: contain; background: #fff; }
+.preview-loading { min-height: 520px; display: grid; place-items: center; color: #7e887f; font-size: 12px; background: repeating-linear-gradient(135deg, #fffdfa, #fffdfa 12px, #f5f1e8 12px, #f5f1e8 24px); }
 .preview-data { position: absolute; color: #28342d; font-family: "Noto Naskh Arabic", serif; font-size: clamp(6px, .7vw, 10px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46%; }
 .preview-name { top: 21.4%; right: 19%; }
 .preview-establishment { top: 8.8%; right: 25%; font-size: clamp(5px, .58vw, 8px); }
