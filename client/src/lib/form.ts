@@ -153,7 +153,7 @@ const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
     "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
     "insuredName", "insuranceNumber", "nationalId", "qualification", "profession", "sector", "category", "medicalExam",
     "contributionCode", "startDate", "basicWage", "totalWage", "establishmentName",
-    "establishmentNumber", "establishmentType", "country", "governorate", "buildingNumber", "district", "street", "center", "phone", "workType", "address",
+    "establishmentNumber", "establishmentType", "country", "governorate", "buildingNumber", "street", "center", "phone", "workType", "address",
   ],
   s6: [
     "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
