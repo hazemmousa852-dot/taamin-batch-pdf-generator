@@ -167,8 +167,8 @@ const digitsOnlyFields: Array<keyof PersonRecord> = [
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
 ];
-const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate"];
-const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage", "increasePercent"];
+const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "releaseDate", "endDate"];
+const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage"];
 
 export function normalizeDigits(value: unknown) {
   return String(value ?? "")
