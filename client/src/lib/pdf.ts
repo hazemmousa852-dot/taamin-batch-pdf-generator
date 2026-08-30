@@ -66,6 +66,14 @@ function cleanDigits(value: string) { return normalizeDigits(value).replace(/\D/
 function getTextField(form: ReturnType<PDFDocument["getForm"]>, name: string) {
   try { return form.getTextField(name); } catch { throw new Error(`حقل PDF غير موجود: ${name}`); }
 }
+function fittedFontSize(textField: ReturnType<typeof getTextField>, text: string, font: PDFFont) {
+  const widget = textField.acroField.getWidgets()[0];
+  const width = widget?.getRectangle().width ?? 120;
+  const availableWidth = Math.max(8, width - 5);
+  let size = 12;
+  while (size > 7.5 && font.widthOfTextAtSize(text, size) > availableWidth) size -= 0.5;
+  return size;
+}
 function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string, font: PDFFont, alignment: TextAlignment = TextAlignment.Right) {
   const textField = getTextField(form, name);
   const normalized = normalizeText(value);
@@ -74,13 +82,16 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   // shorter than valid insurance and phone numbers. Preserve the user's full
   // value and let the generated appearance reduce the font size to fit.
   if (maxLength && normalized.length > maxLength) textField.removeMaxLength();
-  textField.setText(toPdfText(normalized));
+  const pdfText = toPdfText(normalized);
+  textField.setText(pdfText);
   textField.setAlignment(alignment);
-  const fontSize = normalized.length > 40 ? 8 : normalized.length > 28 ? 9 : normalized.length > 18 ? 10 : 11;
+  // Match the printed form's text scale. Start at 12 pt and shrink only when
+  // the actual shaped Arabic glyphs would exceed this specific field's width.
+  const fontSize = fittedFontSize(textField, pdfText, font);
   // Several fields in the official form have no /DA entry. Without it,
   // pdf-lib silently falls back to auto-sizing and Arabic becomes extremely
   // small. Seed a valid appearance first, then apply a consistent readable size.
-  if (!textField.acroField.getDefaultAppearance()) textField.acroField.setDefaultAppearance("/Helv 11 Tf 0 g");
+  if (!textField.acroField.getDefaultAppearance()) textField.acroField.setDefaultAppearance("/Helv 12 Tf 0 g");
   textField.setFontSize(fontSize);
   textField.updateAppearances(font);
 }
