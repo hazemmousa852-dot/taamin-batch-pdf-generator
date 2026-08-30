@@ -35,10 +35,12 @@ const s1DateBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   increaseDate: ["Text Field0", "Text Field1", "Text Field2"],
 };
 const s6TextBindings: Partial<Record<keyof PersonRecord, string[]>> = {
-  office: ["بتكم"], applicantRole: [":بلطلا مدقم ةفص"], applicantName: [":بلطلا مدقم ةفص_1"], applicantPhone: [":نوفيلتلا مقر"], insuredName: ["Text Field1"], establishmentName: [":هأشنلما مسا", ":هأشنلما مسا_1", "Text Field5"], address: ["Text Field6"], endReason: ["fill_1"],
+  office: ["بتكم"], applicantRole: [":بلطلا مدقم ةفص"], applicantName: [":بلطلا مدقم ةفص_1"], applicantPhone: [":نوفيلتلا مقر"],
+  insuredName: ["Text Field1", "Text Field7"], establishmentName: [":هأشنلما مسا", "Text Field5"], insuranceNumber: [": نييمأتلا مقرلا", ":نييمأتلا اهمقر"],
+  address: ["Text Field6"], endReason: ["fill_1"],
 };
 const s6BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
-  applicantNationalId: ["موقلا مقري"], insuranceNumber: [": نييمأتلا مقرلا", ":نييمأتلا اهمقر", "Text Field7"], nationalId: [": يـموقلا مقرلا"],
+  applicantNationalId: ["موقلا مقري"], establishmentNumber: [":هأشنلما مسا_1"], nationalId: [": يـموقلا مقرلا"],
 };
 const checkboxBindings: Partial<Record<keyof PersonRecord, Record<string, string>>> = { category: { "عاملين لدى الغير": "يرغلا ىدل ينلماع", "أصحاب أعمال": "لامعأ باحصأشنم ملهآت", "عمالة غير منتظمة": "زباخلماب ينلماعلا" } };
 
@@ -84,7 +86,7 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     setText(form, "موقلا مقري", record.applicantNationalId, arabicFont);
     setText(form, ": يـموقلا مقرلا", record.nationalId, arabicFont);
     setText(form, ": نييمأتلا مقرلا", record.insuranceNumber, arabicFont);
-    setText(form, "Text Field7", record.insuranceNumber, arabicFont);
+    setText(form, ":نييمأتلا اهمقر", record.insuranceNumber, arabicFont);
     const [year, month, day] = record.endDate.split("-");
     if (day && month && year) {
       setText(form, "Text Field4", day, arabicFont);
