@@ -10,16 +10,19 @@ export type PersonRecord = {
   office: string;
   establishmentName: string;
   establishmentNumber: string;
+  establishmentType: string;
   insuredName: string;
   insuranceNumber: string;
   nationalId: string;
   qualification: string;
   profession: string;
   professionCode: string;
+  sector: string;
   startDate: string;
   birthDate: string;
   gender: string;
   category: string;
+  medicalExam: string;
   contributionCode: string;
   workType: string;
   basicWage: string;
@@ -30,6 +33,7 @@ export type PersonRecord = {
   country: string;
   city: string;
   governorate: string;
+  buildingNumber: string;
   district: string;
   street: string;
   center: string;
@@ -54,17 +58,20 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "insuranceNumber", label: "الرقم التأميني" },
   { key: "establishmentName", label: "اسم المنشأة" },
   { key: "establishmentNumber", label: "رقم المنشأة" },
+  { key: "establishmentType", label: "نوع المنشأة" },
   { key: "office", label: "المكتب" },
   { key: "qualification", label: "المؤهل" },
   { key: "profession", label: "المهنة" },
   { key: "professionCode", label: "كود المهنة" },
+  { key: "sector", label: "القطاع" },
   { key: "startDate", label: "تاريخ بدء الاشتراك" },
   { key: "birthDate", label: "تاريخ الميلاد" },
   { key: "gender", label: "النوع" },
   { key: "category", label: "الفئة" },
+  { key: "medicalExam", label: "استيفاء الكشف الطبي الابتدائي" },
   { key: "contributionCode", label: "كود الاشتراك" },
   { key: "workType", label: "نوع المدة" },
-  { key: "basicWage", label: "الأجر الأساسي" },
+  { key: "basicWage", label: "أجر / دخل الاشتراك" },
   { key: "variableWage", label: "الأجر المتغير" },
   { key: "totalWage", label: "الأجر الشامل" },
   { key: "increaseDate", label: "تاريخ بداية العجز" },
@@ -72,6 +79,7 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "country", label: "الجنسية" },
   { key: "city", label: "المدينة" },
   { key: "governorate", label: "المحافظة" },
+  { key: "buildingNumber", label: "رقم العقار" },
   { key: "district", label: "الشياخة / القرية" },
   { key: "street", label: "الشارع" },
   { key: "center", label: "القسم / المركز" },
@@ -94,16 +102,19 @@ const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
   office: "",
   establishmentName: "",
   establishmentNumber: "",
+  establishmentType: "",
   insuredName: "",
   insuranceNumber: "",
   nationalId: "",
   qualification: "",
   profession: "",
   professionCode: "",
+  sector: "",
   startDate: "",
   birthDate: "",
   gender: "",
   category: "",
+  medicalExam: "",
   contributionCode: "",
   workType: "",
   basicWage: "",
@@ -114,6 +125,7 @@ const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
   country: "",
   city: "",
   governorate: "",
+  buildingNumber: "",
   district: "",
   street: "",
   center: "",
@@ -139,9 +151,9 @@ export function makeEmptyRecord(): PersonRecord {
 const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
   s1: [
     "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
-    "insuredName", "insuranceNumber", "nationalId", "qualification", "profession", "category",
+    "insuredName", "insuranceNumber", "nationalId", "qualification", "profession", "sector", "category", "medicalExam",
     "contributionCode", "startDate", "basicWage", "totalWage", "establishmentName",
-    "establishmentNumber", "country", "governorate", "district", "street", "center", "phone", "workType", "address",
+    "establishmentNumber", "establishmentType", "country", "governorate", "buildingNumber", "district", "street", "center", "phone", "workType", "address",
   ],
   s6: [
     "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
@@ -153,7 +165,7 @@ const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
 const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ key, label }) => [key, label]));
 const digitsOnlyFields: Array<keyof PersonRecord> = [
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
-  "professionCode", "contributionCode", "phone", "applicantPhone",
+  "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
 ];
 const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate"];
 const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage", "increasePercent"];
@@ -233,17 +245,20 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   insuranceNumber: ["الرقم التأميني", "الرقم التامينى", "رقم تأميني", "insurance number", "insurancenumber"],
   establishmentName: ["اسم المنشأة", "اسم المنشأه", "المنشأة", "اسم الشركة", "establishmentname"],
   establishmentNumber: ["رقم المنشأة", "رقم المنشأه", "establishmentnumber"],
+  establishmentType: ["نوع المنشأة", "نوع المنشأه", "establishmenttype"],
   office: ["المكتب", "مكتب التأمينات", "office"],
   qualification: ["المؤهل", "المؤهل الدراسي", "qualification"],
   profession: ["المهنة", "المهنه", "الوظيفة", "profession", "job"],
   professionCode: ["كود المهنة", "كود المهنه", "professioncode", "jobcode"],
+  sector: ["القطاع", "قطاع", "sector"],
   startDate: ["تاريخ بدء الاشتراك", "تاريخ بدء الاشتراك التأميني", "startdate", "subscriptionstartdate"],
   birthDate: ["تاريخ الميلاد", "birthdate", "dateofbirth"],
   gender: ["النوع", "الجنس", "gender", "sex"],
   category: ["الفئة", "الفئه", "category"],
+  medicalExam: ["استيفاء الكشف الطبي الابتدائي", "الكشف الطبي", "medicalexam"],
   contributionCode: ["كود الاشتراك", "كود الاشتراك التأميني", "contributioncode"],
   workType: ["نوع المدة", "نوع المده", "نوع العمل", "worktype"],
-  basicWage: ["الأجر الأساسي", "الاجر الاساسي", "basicwage"],
+  basicWage: ["أجر / دخل الاشتراك", "أجر الاشتراك", "دخل الاشتراك", "الأجر الأساسي", "الاجر الاساسي", "basicwage"],
   variableWage: ["الأجر المتغير", "الاجر المتغير", "variablewage"],
   totalWage: ["الأجر الشامل", "الاجر الشامل", "totalwage", "wage"],
   increaseDate: ["تاريخ بداية العجز", "تاريخ الزيادة", "increasedate"],
@@ -251,6 +266,7 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   country: ["الجنسية", "الجنسيه", "الدولة", "الدوله", "nationality", "country"],
   city: ["المدينة", "المدينه", "city"],
   governorate: ["المحافظة", "المحافظه", "governorate"],
+  buildingNumber: ["رقم العقار", "عقار رقم", "buildingnumber"],
   district: ["الشياخة / القرية", "الشياخة", "القرية", "district", "village"],
   street: ["الشارع", "street"],
   center: ["القسم / المركز", "القسم", "المركز", "center", "district center"],
