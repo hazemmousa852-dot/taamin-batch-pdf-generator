@@ -154,7 +154,7 @@ const fieldGroups: FieldGroup[] = [
       { key: "city", label: "المدينة", placeholder: "المدينة" },
       { key: "governorate", label: "المحافظة", placeholder: "المحافظة" },
       { key: "buildingNumber", label: "رقم العقار", placeholder: "رقم العقار", type: "number" },
-      { key: "district", label: "الشياخة / القرية", placeholder: "الشياخة أو القرية" },
+      { key: "district", label: "الشياخة / القرية (اختياري)", placeholder: "اتركها فارغة إن لم توجد" },
       { key: "street", label: "الشارع", placeholder: "اسم الشارع" },
       { key: "center", label: "القسم / المركز", placeholder: "القسم أو المركز" },
       { key: "phone", label: "التليفون", placeholder: "رقم الهاتف", type: "number" },
