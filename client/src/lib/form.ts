@@ -3,6 +3,7 @@
 export type TemplateId = "s1" | "s6";
 export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1", s6: "نموذج س6" };
 export type RecordStatus = "مسودة" | "جاهز" | "ناقص";
+export type ValidationIssue = { key: keyof PersonRecord; message: string };
 
 export type PersonRecord = {
   id: string;
@@ -67,7 +68,7 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "totalWage", label: "الأجر الشامل" },
   { key: "increaseDate", label: "تاريخ بداية العجز" },
   { key: "increasePercent", label: "نسبة العجز" },
-  { key: "country", label: "الدولة" },
+  { key: "country", label: "الجنسية" },
   { key: "city", label: "المدينة" },
   { key: "governorate", label: "المحافظة" },
   { key: "district", label: "الشياخة / القرية" },
@@ -132,11 +133,83 @@ export function makeEmptyRecord(): PersonRecord {
   return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, ...EMPTY_VALUES };
 }
 
-export function recordStatus(record: PersonRecord): RecordStatus {
-  const core = [record.insuredName, record.nationalId, record.establishmentName];
-  if (core.every(Boolean)) return "جاهز";
-  if (core.some(Boolean)) return "ناقص";
-  return "مسودة";
+const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
+  s1: [
+    "office", "applicantName", "applicantRole", "applicantPhone", "applicantNationalId",
+    "insuredName", "insuranceNumber", "nationalId", "qualification", "profession", "category",
+    "contributionCode", "startDate", "basicWage", "totalWage", "establishmentName",
+    "establishmentNumber", "country", "governorate", "district", "street", "center", "phone", "workType", "address",
+  ],
+  s6: [
+    "office", "applicantName", "applicantRole", "applicantPhone", "applicantNationalId",
+    "insuredName", "insuranceNumber", "nationalId", "establishmentName", "establishmentNumber",
+    "endDate", "endReason", "address",
+  ],
+};
+
+const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ key, label }) => [key, label]));
+const digitsOnlyFields: Array<keyof PersonRecord> = [
+  "nationalId", "applicantNationalId", "insuranceNumber", "establishmentNumber",
+  "professionCode", "contributionCode", "phone", "applicantPhone",
+];
+const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate"];
+const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage", "increasePercent"];
+
+export function normalizeDigits(value: unknown) {
+  return String(value ?? "")
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+}
+
+export function normalizeText(value: unknown) {
+  return normalizeDigits(value)
+    .normalize("NFC")
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+export function validateRecord(record: PersonRecord, template: TemplateId = "s1"): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const key of REQUIRED_FIELDS[template]) {
+    if (!record[key].trim()) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: حقل مطلوب` });
+  }
+  for (const key of digitsOnlyFields) {
+    const value = record[key].trim();
+    if (value && !/^\d+$/.test(normalizeDigits(value))) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: استخدم أرقامًا فقط` });
+  }
+  if (record.nationalId && normalizeDigits(record.nationalId).length !== 14) issues.push({ key: "nationalId", message: "الرقم القومي: يجب أن يتكون من 14 رقمًا" });
+  if (record.applicantNationalId && normalizeDigits(record.applicantNationalId).length !== 14) issues.push({ key: "applicantNationalId", message: "الرقم القومي لمقدم الطلب: يجب أن يتكون من 14 رقمًا" });
+  for (const key of dateFields) {
+    const value = record[key].trim();
+    if (value && !isValidDate(value)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: تاريخ غير صحيح` });
+  }
+  for (const key of moneyFields) {
+    const value = normalizeDigits(record[key]).replace(",", ".");
+    if (value && (!/^\d+(\.\d{1,2})?$/.test(value) || Number(value) < 0)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: قيمة رقمية غير صحيحة` });
+  }
+  if (record.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.email)) issues.push({ key: "email", message: "البريد الإلكتروني: صيغة غير صحيحة" });
+  if (record.startDate && record.birthDate && record.startDate < record.birthDate) issues.push({ key: "startDate", message: "تاريخ بدء الاشتراك يسبق تاريخ الميلاد" });
+  if (record.endDate && record.startDate && record.endDate < record.startDate) issues.push({ key: "endDate", message: "تاريخ انتهاء الاشتراك يسبق تاريخ البدء" });
+  return issues;
+}
+
+export function relevantFieldCount(template: TemplateId = "s1") {
+  return REQUIRED_FIELDS[template].length;
+}
+
+export function recordStatus(record: PersonRecord, template: TemplateId = "s1"): RecordStatus {
+  const filled = REQUIRED_FIELDS[template].filter((key) => record[key].trim()).length;
+  if (filled === 0) return "مسودة";
+  if (validateRecord(record, template).length === 0) return "جاهز";
+  return "ناقص";
 }
 
 export function filledCount(record: PersonRecord) {
@@ -144,7 +217,7 @@ export function filledCount(record: PersonRecord) {
 }
 
 function normalizeKey(value: unknown) {
-  return String(value ?? "")
+  return normalizeText(value)
     .trim()
     .toLocaleLowerCase("ar-EG")
     .replace(/[\s_\-–—:/\\().]+/g, "");
@@ -172,7 +245,7 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   totalWage: ["الأجر الشامل", "الاجر الشامل", "totalwage", "wage"],
   increaseDate: ["تاريخ بداية العجز", "تاريخ الزيادة", "increasedate"],
   increasePercent: ["نسبة العجز", "نسبة الزيادة", "increasepercent"],
-  country: ["الدولة", "الدوله", "country"],
+  country: ["الجنسية", "الجنسيه", "الدولة", "الدوله", "nationality", "country"],
   city: ["المدينة", "المدينه", "city"],
   governorate: ["المحافظة", "المحافظه", "governorate"],
   district: ["الشياخة / القرية", "الشياخة", "القرية", "district", "village"],
@@ -197,7 +270,16 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
   const result = makeEmptyRecord();
   (Object.keys(aliases) as Array<keyof PersonRecord>).forEach((key) => {
     const found = aliases[key].find((candidate) => normalized.has(normalizeKey(candidate)));
-    if (found) result[key] = String(normalized.get(normalizeKey(found)) ?? "").trim();
+    if (!found) return;
+    const rawValue = normalized.get(normalizeKey(found));
+    if (rawValue instanceof Date && !Number.isNaN(rawValue.getTime())) {
+      const year = rawValue.getFullYear();
+      const month = String(rawValue.getMonth() + 1).padStart(2, "0");
+      const day = String(rawValue.getDate()).padStart(2, "0");
+      result[key] = `${year}-${month}-${day}`;
+    } else {
+      result[key] = normalizeText(rawValue);
+    }
   });
   return result;
 }
@@ -205,3 +287,4 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
 export function displayValue(value: string | undefined, empty = "—") {
   return value?.trim() ? value : empty;
 }
+

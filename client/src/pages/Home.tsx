@@ -53,7 +53,10 @@ import {
   filledCount,
   makeEmptyRecord,
   mapExcelRow,
+  normalizeDigits,
   recordStatus,
+  relevantFieldCount,
+  validateRecord,
   type PersonRecord,
   TEMPLATE_LABELS,
   type TemplateId,
@@ -143,7 +146,7 @@ const fieldGroups: FieldGroup[] = [
     note: "بيانات محل الإقامة وجهة العمل والتواصل",
     icon: Building2,
     fields: [
-      { key: "country", label: "الدولة", placeholder: "مصر" },
+      { key: "country", label: "الجنسية", placeholder: "مثال: مصري" },
       { key: "city", label: "المدينة", placeholder: "المدينة" },
       { key: "governorate", label: "المحافظة", placeholder: "المحافظة" },
       { key: "district", label: "الشياخة / القرية", placeholder: "الشياخة أو القرية" },
@@ -173,6 +176,25 @@ const fieldGroups: FieldGroup[] = [
     ],
   },
 ];
+
+// Only show fields that have a verified destination in the selected official PDF.
+// This prevents users from entering data that would never appear in the export.
+const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
+  s1: new Set([
+    "insuredName", "nationalId", "insuranceNumber", "category", "country", "establishmentName",
+    "establishmentNumber", "office", "profession", "qualification", "startDate", "contributionCode",
+    "workType", "basicWage", "totalWage", "increaseDate", "increasePercent", "governorate",
+    "district", "street", "center", "phone", "address", "applicantName", "applicantRole", "applicantPhone", "applicantNationalId",
+  ]),
+  s6: new Set([
+    "insuredName", "nationalId", "insuranceNumber", "establishmentName", "establishmentNumber", "office",
+    "applicantName", "applicantRole", "applicantPhone", "applicantNationalId", "endDate", "endReason", "address",
+  ]),
+};
+const IDENTIFIER_FIELDS = new Set<EditableKey>([
+  "nationalId", "applicantNationalId", "insuranceNumber", "establishmentNumber",
+  "professionCode", "contributionCode", "phone", "applicantPhone",
+]);
 function initials(value: string) {
   return value
     .trim()
@@ -229,9 +251,13 @@ export default function Home() {
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [activeRecord, template]);
-  const readyCount = records.filter((record) => recordStatus(record) === "جاهز").length;
-  const draftCount = records.filter((record) => recordStatus(record) !== "جاهز").length;
-  const availableGroups = useMemo(() => template === "s6" ? fieldGroups : fieldGroups.filter((group) => group.id !== "s6"), [template]);
+  const readyCount = records.filter((record) => recordStatus(record, template) === "جاهز").length;
+  const draftCount = records.filter((record) => recordStatus(record, template) !== "جاهز").length;
+  const activeIssues = useMemo(() => validateRecord(activeRecord, template), [activeRecord, template]);
+  const issueByField = useMemo(() => new Map(activeIssues.map((issue) => [issue.key, issue.message])), [activeIssues]);
+  const availableGroups = useMemo(() => fieldGroups
+    .map((group) => ({ ...group, fields: group.fields.filter((field) => TEMPLATE_FIELDS[template].has(field.key)) }))
+    .filter((group) => group.fields.length > 0), [template]);
   const visibleRecords = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("ar-EG");
     if (!query) return records;
@@ -249,8 +275,9 @@ export default function Home() {
   }
 
   function updateField(key: EditableKey, value: string) {
+    const nextValue = IDENTIFIER_FIELDS.has(key) ? normalizeDigits(value).replace(/\D/g, "") : value;
     setRecords((current) =>
-      current.map((record) => (record.id === activeId ? { ...record, [key]: value } : record)),
+      current.map((record) => (record.id === activeId ? { ...record, [key]: nextValue } : record)),
     );
   }
 
@@ -290,7 +317,8 @@ export default function Home() {
       setRecords(imported);
       setActiveId(imported[0].id);
       setMode("bulk");
-      toast.success(`تم استيراد ${imported.length} سجل`, { description: "راجع الصفوف ثم نزّل الدفعة عند الجاهزية." });
+      const invalidCount = imported.filter((record) => validateRecord(record, template).length > 0).length;
+      toast.success(`تم استيراد ${imported.length} سجل`, { description: invalidCount ? `${invalidCount} سجل يحتاج مراجعة قبل التصدير.` : "كل السجلات جاهزة للتصدير." });
     } catch {
       toast.error("تعذر قراءة ملف Excel", { description: "استخدم ملف .xlsx أو .xls سليمًا." });
     } finally {
@@ -313,6 +341,11 @@ export default function Home() {
   }
 
   async function downloadSelected() {
+    const issues = validateRecord(activeRecord, template);
+    if (issues.length) {
+      toast.error("السجل يحتاج مراجعة", { description: issues.slice(0, 3).map((issue) => issue.message).join("، ") });
+      return;
+    }
     setIsProcessing(true);
     try {
       const pdf = await fillPdf(activeRecord, template);
@@ -326,7 +359,7 @@ export default function Home() {
   }
 
   async function downloadAll() {
-    const validRecords = records.filter((record) => recordStatus(record) === "جاهز");
+    const validRecords = records.filter((record) => recordStatus(record, template) === "جاهز");
     if (!validRecords.length) {
       toast.error("لا توجد سجلات مكتملة", { description: "أكمل الاسم والرقم القومي واسم المنشأة أولًا." });
       return;
@@ -438,7 +471,7 @@ export default function Home() {
             {mode === "bulk" ? (
               <Card className="upload-card registry-card">
                 <div className="upload-art"><img src={RIBBON_URL} alt="" /><div className="upload-art-label"><FileSpreadsheet size={17} /><span>صفوف منظمة<br /><b>إلى ملفات</b></span></div></div>
-                <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>نقرأ أول ورقة في الملف ونطابق الأعمدة تلقائيًا مع نموذج س1.</p></div><span className="supported-formats">.XLSX / .XLS</span></div>
+                <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>نقرأ أول ورقة في الملف ونطابق الأعمدة تلقائيًا مع {TEMPLATE_LABELS[template]}.</p></div><span className="supported-formats">.XLSX / .XLS / .CSV</span></div>
                   <div className="upload-actions"><Button className="button-primary" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <CloudUpload size={16} />} اختر ملف Excel</Button><button className="text-link" onClick={downloadTemplate}>نزّل قالب الأعمدة <ArrowLeft size={14} /></button></div>
                   {fileName && <div className="uploaded-file"><FileSpreadsheet size={16} /><span>{fileName}</span><Check size={15} /></div>}
                   <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcel} aria-label="رفع ملف Excel" className="file-input-accessible" />
@@ -458,13 +491,13 @@ export default function Home() {
                 <thead><tr><th className="check-cell"><input type="checkbox" aria-label="تحديد الكل" /></th><th>المؤمن عليه</th><th>الرقم القومي</th><th>اسم المنشأة</th><th>اكتمال البيانات</th><th>الحالة</th><th /></tr></thead>
                 <tbody>
                   {visibleRecords.map((record, index) => {
-                    const status = recordStatus(record);
+                    const status = recordStatus(record, template);
                     const isActive = record.id === activeId;
                     return <tr key={record.id} className={isActive ? "record-row-active" : ""} onClick={() => setActiveId(record.id)}>
                       <td className="check-cell"><input type="checkbox" checked={isActive} onChange={() => setActiveId(record.id)} onClick={(event) => event.stopPropagation()} aria-label={`تحديد ${record.insuredName || `السجل ${index + 1}`}`} /></td>
                       <td><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small></div></div></td>
                       <td className="mono-cell">{record.nationalId || "—"}</td><td>{record.establishmentName || "—"}</td>
-                      <td><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / 30) * 100))}%` }} /></div><small>{filledCount(record)} / 30</small></div></td>
+                      <td><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / relevantFieldCount(template)) * 100))}%` }} /></div><small>{Math.min(filledCount(record), relevantFieldCount(template))} / {relevantFieldCount(template)}</small></div></td>
                       <td><span className={`status-badge ${statusClass(status)}`}><span />{status}</span></td>
                       <td><button className="row-menu" onClick={(event) => { event.stopPropagation(); removeRecord(record.id); }} aria-label="حذف السجل"><Trash2 size={15} /></button></td>
                     </tr>;
@@ -477,7 +510,7 @@ export default function Home() {
 
           <section className="editor-layout">
             <div className="editor-panel">
-              <div className="editor-header"><div><p className="section-overline">السجل المحدد</p><h2>{activeRecord.insuredName || "سجل جديد"}</h2></div><Badge className={`status-badge ${statusClass(recordStatus(activeRecord))}`}><span />{recordStatus(activeRecord)}</Badge></div>
+              <div className="editor-header"><div><p className="section-overline">السجل المحدد</p><h2>{activeRecord.insuredName || "سجل جديد"}</h2></div><Badge className={`status-badge ${statusClass(recordStatus(activeRecord, template))}`}><span />{recordStatus(activeRecord, template)}</Badge></div>
               <div className="group-tabs" role="tablist" aria-label="أقسام النموذج">
                 {availableGroups.map((group) => { const Icon = group.icon; return <button key={group.id} className={activeGroup === group.id ? "group-tab-active" : ""} onClick={() => setActiveGroup(group.id)}><span className="group-tab-number">{group.number}</span><Icon size={16} /><span>{group.title}</span></button>; })}
               </div>
@@ -488,7 +521,7 @@ export default function Home() {
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
                     <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
                     <div className="fields-grid">
-                      {group.fields.map((field) => <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{field.key === "category" ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)}><option value="">اختر الفئة</option><option>عاملين لدى الغير</option><option>المصريين بالخارج</option><option>أصحاب أعمال</option><option>عمالة غير منتظمة</option></select> : <Input id={field.key} type={field.type || "text"} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} />}</div>)}
+                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{field.key === "category" ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">اختر الفئة</option><option>عاملين لدى الغير</option><option>أصحاب أعمال</option><option>عمالة غير منتظمة</option></select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : undefined} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && activeRecord[field.key] && <span className="field-error">{issue}</span>}</div>; })}
                     </div>
                   </div>;
                 })}
@@ -510,3 +543,4 @@ export default function Home() {
     </div>
   );
 }
+
