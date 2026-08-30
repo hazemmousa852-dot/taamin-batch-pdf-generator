@@ -68,7 +68,10 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   const textField = getTextField(form, name);
   const normalized = normalizeText(value);
   const maxLength = typeof textField.getMaxLength === "function" ? textField.getMaxLength() : undefined;
-  if (maxLength && normalized.length > maxLength) throw new Error(`القيمة أطول من مساحة الحقل (${name}): الحد الأقصى ${maxLength}`);
+  // The official PDFs contain legacy character limits that are sometimes
+  // shorter than valid insurance and phone numbers. Preserve the user's full
+  // value and let the generated appearance reduce the font size to fit.
+  if (maxLength && normalized.length > maxLength) textField.removeMaxLength();
   textField.setText(toPdfText(normalized));
   textField.setAlignment(alignment);
   const fontSize = Math.max(7, Math.min(11, normalized.length > 28 ? 7 : normalized.length > 20 ? 8 : 10));
