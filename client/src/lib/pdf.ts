@@ -34,7 +34,7 @@ const s1TextBindings: Partial<Record<keyof PersonRecord, string[]>> = {
 };
 const s1MoneyBindings: Partial<Record<keyof PersonRecord, string[]>> = { basicWage: ["Text Field4"], totalWage: ["Text Field5"] };
 const s1BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
-  establishmentNumber: ["أشنلما مقرة", ":نييمأتلا اهمقر"], insuranceNumber: ["Text Field3", ":يــــنيمأتلا مـــقرلا"],
+  establishmentNumber: ["أشنلما مقرة", ":نييمأتلا اهمقر"], applicantInsuranceNumber: ["Text Field3"], insuranceNumber: [":يــــنيمأتلا مـــقرلا"],
   nationalId: ["ةيــــــــــــسنلجا_1"], applicantNationalId: ["مقر: ىموق"],
 };
 const s1DateBindings: Partial<Record<keyof PersonRecord, string[]>> = {
@@ -45,7 +45,7 @@ const S6_PAGE2_INSURANCE = "ا: هيلع نمؤلما مــــــــس------
 const s6TextBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   office: ["بتكم"], applicantRole: [":بلطلا مدقم ةفص"], applicantName: [":بلطلا مدقم ةفص_1"], applicantPhone: [":نوفيلتلا مقر"],
   insuredName: ["Text Field1", "Text Field7"], establishmentName: [":هأشنلما مسا", "Text Field5"],
-  insuranceNumber: ["Text Field0", ": نييمأتلا مقرلا", S6_PAGE2_INSURANCE], address: ["Text Field6"], endReason: ["fill_1"],
+  applicantInsuranceNumber: ["Text Field0"], insuranceNumber: [": نييمأتلا مقرلا", S6_PAGE2_INSURANCE], address: ["Text Field6"], endReason: ["fill_1"],
 };
 const s6BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   applicantNationalId: ["موقلا مقري"], establishmentNumber: [":هأشنلما مسا_1", ":نييمأتلا اهمقر"], nationalId: [": يـموقلا مقرلا"],
