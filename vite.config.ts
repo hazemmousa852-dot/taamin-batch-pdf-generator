@@ -206,7 +206,7 @@ function vitePluginStorageProxy(): Plugin {
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
 
 export default defineConfig({
-  base: process.env.GITHUB_ACTIONS ? "/taamin-form-filler/" : "/",
+  base: process.env.GITHUB_ACTIONS ? "/taamin-batch-pdf-generator/" : "/",
   plugins,
   resolve: {
     alias: {
@@ -240,3 +240,4 @@ export default defineConfig({
     },
   },
 });
+
