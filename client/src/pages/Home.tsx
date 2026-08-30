@@ -168,6 +168,7 @@ const fieldGroups: FieldGroup[] = [
     fields: [
       { key: "applicantName", label: "مقدم الطلب", placeholder: "اسم مقدم الطلب" },
       { key: "applicantRole", label: "صفة مقدم الطلب", placeholder: "صاحب العمل / المسؤول" },
+      { key: "applicantInsuranceNumber", label: "الرقم التأميني لمقدم الطلب", placeholder: "الرقم التأميني", type: "number" },
       { key: "applicantPhone", label: "رقم تليفون مقدم الطلب", placeholder: "رقم الهاتف", type: "number" },
       { key: "applicantNationalId", label: "الرقم القومي لمقدم الطلب", placeholder: "الرقم القومي", type: "number" },
       { key: "endDate", label: "تاريخ انتهاء الاشتراك", placeholder: "تاريخ الانتهاء", type: "date" },
@@ -184,15 +185,15 @@ const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
     "insuredName", "nationalId", "insuranceNumber", "category", "country", "establishmentName",
     "establishmentNumber", "office", "profession", "qualification", "startDate", "contributionCode",
     "workType", "basicWage", "totalWage", "increaseDate", "increasePercent", "governorate",
-    "district", "street", "center", "phone", "address", "applicantName", "applicantRole", "applicantPhone", "applicantNationalId",
+    "district", "street", "center", "phone", "address", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
   ]),
   s6: new Set([
     "insuredName", "nationalId", "insuranceNumber", "establishmentName", "establishmentNumber", "office",
-    "applicantName", "applicantRole", "applicantPhone", "applicantNationalId", "endDate", "endReason", "address",
+    "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId", "endDate", "endReason", "address",
   ]),
 };
 const IDENTIFIER_FIELDS = new Set<EditableKey>([
-  "nationalId", "applicantNationalId", "insuranceNumber", "establishmentNumber",
+  "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone",
 ]);
 function initials(value: string) {
