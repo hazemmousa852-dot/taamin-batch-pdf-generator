@@ -30,7 +30,7 @@ const s1TextBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   office: ["بتكم"], applicantName: [": ةفصبلطلا مدقم_1"], applicantRole: ["Text Field6"], applicantPhone: ["يلتلا مقر:نوف"],
   insuredName: ["fill_3", "انأ رقأ"], qualification: ["ةنهلما_1"], profession: ["ةنهلما"], country: ["ةيــــــــــــسنلجا"],
   governorate: [": ةظفامح"], district: ["ةيرق"], street: ["ةيرق_1"], center: [": ةظفامح_1"],
-  establishmentName: ["fill_4", ":نييمأتلا اهمقر_1"], address: [":ناوــــــــــــنعلا"], workType: ["fill_6"], contributionCode: ["fill_7"], increasePercent: ["%"], phone: ["fill_2"],
+  establishmentName: ["fill_4", ":نييمأتلا اهمقر_1"], address: [":ناوــــــــــــنعلا"], buildingNumber: ["fill_5"], workType: ["fill_6"], contributionCode: ["fill_7"], increasePercent: ["%"], phone: ["fill_2"], sector: [": عاطقلا"],
 };
 const s1MoneyBindings: Partial<Record<keyof PersonRecord, string[]>> = { basicWage: ["Text Field4"], totalWage: ["Text Field5"] };
 const s1BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
@@ -52,6 +52,8 @@ const s6BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
 };
 const checkboxBindings: Partial<Record<keyof PersonRecord, Record<string, string>>> = {
   category: { "عاملين لدى الغير": "يرغلا ىدل ينلماع", "أصحاب أعمال": "لامعأ باحصأشنم ملهآت", "عمالة غير منتظمة": "زباخلماب ينلماعلا" },
+  medicalExam: { "نعم": "ئادتبلاا بيطلا فشكلا ءافيتساي", "لا": "لا" },
+  establishmentType: { "نمطي": "أشنلما عونةطنم :ي", "سيارة": "رايسة", "مركب صيد": "ديص بكرم", "مخابز بلدية": "ةيدلب زبامخ" },
 };
 
 function hasArabic(value: string) { return /[\u0600-\u06ff]/.test(value); }
@@ -98,11 +100,11 @@ function setMoneyFields(form: ReturnType<PDFDocument["getForm"]>, names: string[
   setText(form, names[0], whole, font, TextAlignment.Center);
   if (names[1]) setText(form, names[1], fraction.padEnd(2, "0").slice(0, 2), font, TextAlignment.Center);
 }
-function setCheckboxes(form: ReturnType<PDFDocument["getForm"]>, category: string) {
-  for (const [label, fieldName] of Object.entries(checkboxBindings.category ?? {})) {
+function setCheckboxes(form: ReturnType<PDFDocument["getForm"]>, key: keyof PersonRecord, value: string) {
+  for (const [label, fieldName] of Object.entries(checkboxBindings[key] ?? {})) {
     let checkbox;
     try { checkbox = form.getCheckBox(fieldName); } catch { throw new Error(`خانة اختيار PDF غير موجودة: ${fieldName}`); }
-    label === category ? checkbox.check() : checkbox.uncheck();
+    label === value ? checkbox.check() : checkbox.uncheck();
   }
 }
 
@@ -119,7 +121,9 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
   if (template === "s1") {
     for (const key of Object.keys(s1DateBindings) as Array<keyof PersonRecord>) if (record[key]) setDateFields(form, s1DateBindings[key] ?? [], record[key], arabicFont);
     for (const key of Object.keys(s1MoneyBindings) as Array<keyof PersonRecord>) if (record[key]) setMoneyFields(form, s1MoneyBindings[key] ?? [], record[key], arabicFont);
-    if (record.category) setCheckboxes(form, record.category);
+    if (record.category) setCheckboxes(form, "category", record.category);
+    if (record.medicalExam) setCheckboxes(form, "medicalExam", record.medicalExam);
+    if (record.establishmentType) setCheckboxes(form, "establishmentType", record.establishmentType);
   } else if (record.endDate) setDateFields(form, ["Text Field2", "Text Field3", "Text Field4"], record.endDate, arabicFont);
   // Every populated text field is updated in setText. Avoid updating every
   // field in the source PDF here: some unused official fields have no /DA
