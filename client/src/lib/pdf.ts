@@ -119,7 +119,7 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
   for (const key of Object.keys(textBindings) as Array<keyof PersonRecord>) if (record[key]) for (const name of textBindings[key] ?? []) setText(form, name, record[key], arabicFont);
   for (const key of Object.keys(boxBindings) as Array<keyof PersonRecord>) if (record[key]) setBoxes(form, boxBindings[key] ?? [], record[key], arabicFont);
   if (template === "s1") {
-    for (const key of Object.keys(s1DateBindings) as Array<keyof PersonRecord>) if (record[key]) setDateFields(form, s1DateBindings[key] ?? [], record[key], arabicFont);
+    for (const key of Object.keys(s1DateBindings) as Array<keyof PersonRecord>) if (record[key] && (key !== "increaseDate" || /^\d{4}-\d{2}-\d{2}$/.test(record[key]))) setDateFields(form, s1DateBindings[key] ?? [], record[key], arabicFont);
     for (const key of Object.keys(s1MoneyBindings) as Array<keyof PersonRecord>) if (record[key]) setMoneyFields(form, s1MoneyBindings[key] ?? [], record[key], arabicFont);
     if (record.category) setCheckboxes(form, "category", record.category);
     if (record.medicalExam) setCheckboxes(form, "medicalExam", record.medicalExam);
