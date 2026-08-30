@@ -40,6 +40,7 @@ export type PersonRecord = {
   releaseDate: string;
   applicantName: string;
   applicantRole: string;
+  applicantInsuranceNumber: string;
   applicantPhone: string;
   applicantNationalId: string;
   endDate: string;
@@ -81,6 +82,7 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "releaseDate", label: "تحريرًا في" },
   { key: "applicantName", label: "مقدم الطلب" },
   { key: "applicantRole", label: "صفة مقدم الطلب" },
+  { key: "applicantInsuranceNumber", label: "الرقم التأميني لمقدم الطلب" },
   { key: "applicantPhone", label: "رقم تليفون مقدم الطلب" },
   { key: "applicantNationalId", label: "الرقم القومي لمقدم الطلب" },
   { key: "endDate", label: "تاريخ انتهاء الاشتراك" },
@@ -122,6 +124,7 @@ const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
   releaseDate: "",
   applicantName: "",
   applicantRole: "",
+  applicantInsuranceNumber: "",
   applicantPhone: "",
   applicantNationalId: "",
   endDate: "",
@@ -135,13 +138,13 @@ export function makeEmptyRecord(): PersonRecord {
 
 const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
   s1: [
-    "office", "applicantName", "applicantRole", "applicantPhone", "applicantNationalId",
+    "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
     "insuredName", "insuranceNumber", "nationalId", "qualification", "profession", "category",
     "contributionCode", "startDate", "basicWage", "totalWage", "establishmentName",
     "establishmentNumber", "country", "governorate", "district", "street", "center", "phone", "workType", "address",
   ],
   s6: [
-    "office", "applicantName", "applicantRole", "applicantPhone", "applicantNationalId",
+    "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
     "insuredName", "insuranceNumber", "nationalId", "establishmentName", "establishmentNumber",
     "endDate", "endReason", "address",
   ],
@@ -149,7 +152,7 @@ const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
 
 const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ key, label }) => [key, label]));
 const digitsOnlyFields: Array<keyof PersonRecord> = [
-  "nationalId", "applicantNationalId", "insuranceNumber", "establishmentNumber",
+  "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone",
 ];
 const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate"];
@@ -258,6 +261,7 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   releaseDate: ["تحريرًا في", "تحريرا في", "تاريخ التحرير", "releasedate"],
   applicantName: ["مقدم الطلب", "اسم مقدم الطلب", "applicantname"],
   applicantRole: ["صفة مقدم الطلب", "صفة مقدم الطلب", "applicantrole"],
+  applicantInsuranceNumber: ["الرقم التأميني لمقدم الطلب", "رقم تأميني مقدم الطلب", "applicantinsurancenumber"],
   applicantPhone: ["رقم تليفون مقدم الطلب", "تليفون مقدم الطلب", "applicantphone"],
   applicantNationalId: ["الرقم القومي لمقدم الطلب", "رقم قومي مقدم الطلب", "applicantnationalid"],
   endDate: ["تاريخ انتهاء الاشتراك", "تاريخ الانتهاء", "enddate", "subscriptionenddate"],
