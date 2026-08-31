@@ -1,4 +1,4 @@
-import { PDFDocument, PDFHexString, TextAlignment, type PDFFont } from "pdf-lib";
+import { PDFDocument, PDFHexString, PDFTextField, TextAlignment, type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import * as reshaperPackage from "arabic-persian-reshaper";
 import JSZip from "jszip";
@@ -154,7 +154,9 @@ async function bakeArabicText(
   const pages = pdfDoc.getPages();
   const overlays: Array<{ pageIndex: number; x: number; y: number; width: number; height: number; text: string; alignment: TextAlignment }> = [];
 
-  for (const field of form.getTextFields()) {
+  for (const candidate of form.getFields()) {
+    if (!(candidate instanceof PDFTextField)) continue;
+    const field = candidate;
     const text = normalizeText(field.getText() ?? "");
     if (!hasArabic(text)) continue;
     const alignment = field.getAlignment();
