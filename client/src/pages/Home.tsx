@@ -402,7 +402,10 @@ export default function Home() {
 
   async function downloadTemplate() {
     const sharedHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
-    const personHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && TEMPLATE_FIELDS[template].has(item.key as EditableKey) && !SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
+    const alwaysIncludedPersonFields = new Set<EditableKey>(["endDate", "endReason"]);
+    const personHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id"
+      && (TEMPLATE_FIELDS[template].has(item.key as EditableKey) || alwaysIncludedPersonFields.has(item.key as EditableKey))
+      && !SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
     const sharedSheet = XLSX.utils.aoa_to_sheet([
       sharedHeaders.map((item) => item.label),
       sharedHeaders.map(() => ""),
