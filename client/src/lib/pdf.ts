@@ -101,7 +101,7 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   const pdfText = typeof document === "undefined" ? shapedText : toArabicNumerals(shapedText);
   textField.setText(pdfText);
   textField.setAlignment(alignment);
-  // Match the printed form's text scale. Start at 12 pt and shrink only when
+  // Match the printed form's text scale. Start at 14 pt and shrink only when
   // the actual shaped Arabic glyphs would exceed this specific field's width.
   const fontSize = fittedFontSize(textField, pdfText, font);
   // Several fields in the official form have no /DA entry. Without it,
@@ -148,7 +148,7 @@ function setCheckboxes(form: ReturnType<PDFDocument["getForm"]>, key: keyof Pers
   }
 }
 
-async function bakeArabicText(
+async function bakeFormText(
   pdfDoc: PDFDocument,
   form: ReturnType<PDFDocument["getForm"]>,
   font: PDFFont,
@@ -162,7 +162,8 @@ async function bakeArabicText(
     if (!(candidate instanceof PDFTextField)) continue;
     const field = candidate;
     const rawText = normalizeText(field.getText() ?? "");
-    if (!hasArabic(rawText)) continue;
+    const isDigitsOnly = /^\d+$/.test(normalizeDigits(rawText));
+    if (!hasArabic(rawText) && !isDigitsOnly) continue;
     const text = toArabicNumerals(rawText);
     const alignment = field.getAlignment();
     let placed = false;
@@ -180,8 +181,9 @@ async function bakeArabicText(
       overlays.push({ pageIndex, x, y, width, height, text, alignment });
       placed = true;
     }
-    // Flatten a blank appearance; the correctly shaped Arabic is painted on
-    // top afterwards by the browser's native Arabic text engine.
+    // Flatten a blank appearance; Arabic and digit-only values are painted on
+    // top afterwards by the browser text engine. Digits use an explicit LTR
+    // direction so phone numbers always read from left to right.
     if (placed) {
       field.setText("");
       field.updateAppearances(font);
@@ -200,7 +202,7 @@ async function bakeArabicText(
     canvas.height = Math.max(1, Math.ceil(overlay.height * scale));
     const context = canvas.getContext("2d");
     if (!context) throw new Error("تعذر تجهيز محرك رسم العربية");
-    context.direction = "rtl";
+    context.direction = hasArabic(overlay.text) ? "rtl" : "ltr";
     context.textBaseline = "middle";
     context.fillStyle = "#000";
     let fontSize = Math.min(14, Math.max(10, overlay.height * 0.84));
@@ -242,7 +244,7 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     if (record.medicalExam) setCheckboxes(form, "medicalExam", record.medicalExam);
     if (record.establishmentType) setCheckboxes(form, "establishmentType", record.establishmentType);
   } else if (record.endDate) setDateFields(form, ["Text Field2", "Text Field3", "Text Field4"], record.endDate, arabicFont);
-  const baked = await bakeArabicText(pdfDoc, form, arabicFont, fontBytes);
+  const baked = await bakeFormText(pdfDoc, form, arabicFont, fontBytes);
   if (!baked) for (const field of form.getFields()) field.enableReadOnly();
   // Every populated text field is updated in setText. Avoid updating every
   // field in the source PDF here: some unused official fields have no /DA
