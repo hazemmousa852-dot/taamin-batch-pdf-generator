@@ -226,6 +226,12 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
   pdfDoc.registerFontkit(fontkit);
   const arabicFont = await pdfDoc.embedFont(fontBytes.slice(0), { subset: true });
   const form = pdfDoc.getForm();
+  // The official templates contain decorative push-button widgets for reset
+  // and printing. They are useful only in the blank source form and must not
+  // appear in generated documents or be baked into the final pages.
+  for (const buttonName of ["Reset", "Push Button0", "Print", "Push Button1"]) {
+    try { form.removeField(form.getButton(buttonName)); } catch { /* not present in every template */ }
+  }
   const textBindings = template === "s6" ? s6TextBindings : s1TextBindings;
   const boxBindings = template === "s6" ? s6BoxBindings : s1BoxBindings;
   for (const key of Object.keys(textBindings) as Array<keyof PersonRecord>) if (record[key]) for (const name of textBindings[key] ?? []) setText(form, name, record[key], arabicFont);
