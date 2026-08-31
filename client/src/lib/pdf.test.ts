@@ -71,5 +71,11 @@ describe("official PDF field maps", () => {
     const merged = await PDFDocument.load(await createMergedPdf([record, { ...record, insuredName: "شخص ثان" }], "s6"));
     expect(merged.getPageCount()).toBe(4);
   });
+
+  it("paginates S2 at eleven employees per page", async () => {
+    const records = Array.from({ length: 12 }, (_, index) => ({ ...record, id: `s2-${index}`, insuranceNumber: String(12 - index) }));
+    const merged = await PDFDocument.load(await createMergedPdf(records, "s2"));
+    expect(merged.getPageCount()).toBe(2);
+  });
 });
 
