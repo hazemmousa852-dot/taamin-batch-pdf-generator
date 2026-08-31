@@ -144,6 +144,65 @@ function setCheckboxes(form: ReturnType<PDFDocument["getForm"]>, key: keyof Pers
   }
 }
 
+async function bakeArabicText(
+  pdfDoc: PDFDocument,
+  form: ReturnType<PDFDocument["getForm"]>,
+  font: PDFFont,
+  fontBytes: ArrayBuffer,
+) {
+  if (typeof document === "undefined" || typeof FontFace === "undefined") return false;
+  const pages = pdfDoc.getPages();
+  const overlays: Array<{ pageIndex: number; x: number; y: number; width: number; height: number; text: string; alignment: TextAlignment }> = [];
+
+  for (const field of form.getTextFields()) {
+    const text = normalizeText(field.getText() ?? "");
+    if (!hasArabic(text)) continue;
+    const alignment = field.getAlignment();
+    for (const widget of field.acroField.getWidgets()) {
+      const pageRef = widget.P()?.toString();
+      const pageIndex = pages.findIndex((page) => page.ref.toString() === pageRef);
+      if (pageIndex < 0) continue;
+      const { x, y, width, height } = widget.getRectangle();
+      overlays.push({ pageIndex, x, y, width, height, text, alignment });
+    }
+    // Flatten a blank appearance; the correctly shaped Arabic is painted on
+    // top afterwards by the browser's native Arabic text engine.
+    field.setText("");
+    field.updateAppearances(font);
+  }
+
+  form.flatten({ updateFieldAppearances: false });
+  const face = new FontFace("TaaminArabic", fontBytes.slice(0));
+  await face.load();
+  document.fonts.add(face);
+  const scale = 4;
+
+  for (const overlay of overlays) {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.ceil(overlay.width * scale));
+    canvas.height = Math.max(1, Math.ceil(overlay.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("تعذر تجهيز محرك رسم العربية");
+    context.direction = "rtl";
+    context.textBaseline = "middle";
+    context.fillStyle = "#000";
+    let fontSize = Math.min(12, Math.max(8, overlay.height * 0.72));
+    context.font = `${fontSize * scale}px TaaminArabic`;
+    const maxWidth = Math.max(8, (overlay.width - 5) * scale);
+    while (fontSize > 7.5 && context.measureText(overlay.text).width > maxWidth) {
+      fontSize -= 0.5;
+      context.font = `${fontSize * scale}px TaaminArabic`;
+    }
+    const centered = overlay.alignment === TextAlignment.Center;
+    context.textAlign = centered ? "center" : "right";
+    context.fillText(overlay.text, centered ? canvas.width / 2 : canvas.width - (2 * scale), canvas.height / 2, maxWidth);
+    const pngBlob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("تعذر رسم النص العربي")), "image/png"));
+    const png = await pdfDoc.embedPng(await pngBlob.arrayBuffer());
+    pages[overlay.pageIndex].drawImage(png, { x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height });
+  }
+  return true;
+}
+
 export async function fillPdf(record: PersonRecord, template: TemplateId = "s1") {
   const [templateBytes, fontBytes] = await Promise.all([fetchAsset(TEMPLATE_URLS[template], "قالب النموذج"), fetchAsset(ARABIC_FONT_URL, "الخط العربي")]);
   const pdfDoc = await PDFDocument.load(templateBytes.slice(0));
@@ -161,11 +220,8 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     if (record.medicalExam) setCheckboxes(form, "medicalExam", record.medicalExam);
     if (record.establishmentType) setCheckboxes(form, "establishmentType", record.establishmentType);
   } else if (record.endDate) setDateFields(form, ["Text Field2", "Text Field3", "Text Field4"], record.endDate, arabicFont);
-  // Lock the completed fields so PDF viewers use the Arabic appearance streams
-  // we generated instead of attempting to redraw the Unicode value with their
-  // own non-Arabic form engine. The document remains an interactive AcroForm,
-  // but its completed values cannot be visually corrupted by Chrome/Edge.
-  for (const field of form.getFields()) field.enableReadOnly();
+  const baked = await bakeArabicText(pdfDoc, form, arabicFont, fontBytes);
+  if (!baked) for (const field of form.getFields()) field.enableReadOnly();
   // Every populated text field is updated in setText. Avoid updating every
   // field in the source PDF here: some unused official fields have no /DA
   // font operator and make pdf-lib throw "No Tf operator found".
