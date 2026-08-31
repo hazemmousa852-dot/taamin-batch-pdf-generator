@@ -230,8 +230,15 @@ async function bakeFormText(
       let digitSize = Math.min((cellWidth / scale) * 0.82, overlay.height * 0.9);
       digitSize = Math.max(10, digitSize);
       context.font = `700 ${digitSize * scale}px TaaminArabic`;
-      Array.from(overlay.text).slice(0, overlay.boxCount).forEach((digit, index) => {
-        context.fillText(digit, (index + 0.5) * cellWidth, canvas.height * 0.52, cellWidth * 0.88);
+      const digits = Array.from(overlay.text).slice(-overlay.boxCount);
+      // The printed grids are anchored beside their Arabic labels on the
+      // right. Short values must therefore occupy the rightmost boxes, without
+      // inventing leading zeroes. Preserve the visible left-to-right order of
+      // the number while centering exactly one glyph in every occupied cell.
+      const firstCell = overlay.boxCount - digits.length;
+      digits.forEach((digit, index) => {
+        const cellIndex = firstCell + index;
+        context.fillText(digit, (cellIndex + 0.5) * cellWidth, canvas.height * 0.52, cellWidth * 0.88);
       });
     } else {
       context.fillText(overlay.text, canvas.width / 2, canvas.height / 2, maxWidth);
