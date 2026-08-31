@@ -160,17 +160,27 @@ async function bakeArabicText(
     const text = normalizeText(field.getText() ?? "");
     if (!hasArabic(text)) continue;
     const alignment = field.getAlignment();
+    let placed = false;
     for (const widget of field.acroField.getWidgets()) {
       const pageRef = widget.P()?.toString();
-      const pageIndex = pages.findIndex((page) => page.ref.toString() === pageRef);
+      let pageIndex = pages.findIndex((page) => page.ref.toString() === pageRef);
+      if (pageIndex < 0) {
+        pageIndex = pages.findIndex((page) => {
+          const annots = page.node.Annots();
+          return Boolean(annots?.asArray().some((annot) => pdfDoc.context.lookup(annot) === widget.dict));
+        });
+      }
       if (pageIndex < 0) continue;
       const { x, y, width, height } = widget.getRectangle();
       overlays.push({ pageIndex, x, y, width, height, text, alignment });
+      placed = true;
     }
     // Flatten a blank appearance; the correctly shaped Arabic is painted on
     // top afterwards by the browser's native Arabic text engine.
-    field.setText("");
-    field.updateAppearances(font);
+    if (placed) {
+      field.setText("");
+      field.updateAppearances(font);
+    }
   }
 
   form.flatten({ updateFieldAppearances: false });
