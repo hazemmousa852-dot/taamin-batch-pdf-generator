@@ -33,5 +33,10 @@ describe("Arabic form validation", () => {
     expect(record.nationalId).toBe("29501010123456");
     expect(record.startDate).toBe("2024-05-19");
   });
+  it("reads day/month/year text dates from Excel", () => {
+    const record = mapExcelRow({ "تاريخ بداية الاشتراك": "31/08/2026", "تاريخ بداية العجز": "٠٥/٠٩/٢٠٢٦" });
+    expect(record.startDate).toBe("2026-08-31");
+    expect(record.increaseDate).toBe("2026-09-05");
+  });
 });
 
