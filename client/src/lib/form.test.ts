@@ -43,5 +43,10 @@ describe("Arabic form validation", () => {
     expect(record.insuranceNumber).toBe("123456789");
     expect(record.applicantInsuranceNumber).toBe("987654321");
   });
+  it("requires whole-number wages for S2", () => {
+    const record = { ...validRecord(), basicWage: "2500.50" };
+    expect(validateRecord(record, "s2").map((issue) => issue.message).join(" ")).toContain("أرقام صحيحة");
+    expect(validateRecord({ ...record, basicWage: "2500" }, "s2")).toEqual([]);
+  });
 });
 
