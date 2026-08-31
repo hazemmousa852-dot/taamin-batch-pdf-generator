@@ -138,6 +138,10 @@ function setBoxes(form: ReturnType<PDFDocument["getForm"]>, names: string[], raw
   const digits = cleanDigits(rawValue);
   names.forEach((name) => setText(form, name, digits, font, TextAlignment.Center));
 }
+function insuranceBoxValue(rawValue: string) {
+  const digits = cleanDigits(rawValue);
+  return digits.length <= 10 ? digits.padStart(10, "0") : digits;
+}
 function setDateFields(form: ReturnType<PDFDocument["getForm"]>, names: string[], rawValue: string, font: PDFFont) {
   const match = normalizeDigits(rawValue).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) throw new Error(`صيغة التاريخ غير صحيحة: ${rawValue}`);
@@ -262,7 +266,10 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     const value = digits && digits.length === 10 ? `0${digits}` : record[key];
     for (const name of textBindings[key] ?? []) setText(form, name, value, arabicFont);
   }
-  for (const key of Object.keys(boxBindings) as Array<keyof PersonRecord>) if (record[key]) setBoxes(form, boxBindings[key] ?? [], record[key], arabicFont);
+  for (const key of Object.keys(boxBindings) as Array<keyof PersonRecord>) if (record[key]) {
+    const value = key === "insuranceNumber" || key === "applicantInsuranceNumber" ? insuranceBoxValue(record[key]) : record[key];
+    setBoxes(form, boxBindings[key] ?? [], value, arabicFont);
+  }
   if (template === "s1") {
     for (const key of Object.keys(s1DateBindings) as Array<keyof PersonRecord>) if (record[key] && (key !== "increaseDate" || /^\d{4}-\d{2}-\d{2}$/.test(record[key]))) setDateFields(form, s1DateBindings[key] ?? [], record[key], arabicFont);
     for (const key of Object.keys(s1MoneyBindings) as Array<keyof PersonRecord>) if (record[key]) setMoneyFields(form, s1MoneyBindings[key] ?? [], record[key], arabicFont);
