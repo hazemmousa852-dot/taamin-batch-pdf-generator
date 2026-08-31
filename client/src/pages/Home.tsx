@@ -207,9 +207,13 @@ const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
   "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
 ]);
 const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
+  applicantRole: ["صاحب العمل", "المسؤول", "مفوض"],
   category: ["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"],
   medicalExam: ["نعم", "لا"],
   establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
+  workType: ["دائمة", "مؤقتة", "موسمية"],
+  sector: ["حكومي", "عام / أعمال عام", "خاص"],
+  gender: ["ذكر", "أنثى"],
 };
 const EXCEL_LIST_OPTIONS: Partial<Record<EditableKey, string[]>> = {
   applicantRole: ["صاحب العمل", "المسؤول", "مفوض"],
@@ -635,4 +639,3 @@ export default function Home() {
     </div>
   );
 }
-
