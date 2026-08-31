@@ -223,7 +223,6 @@ const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
   category: ["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"],
   medicalExam: ["نعم", "لا"],
   establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
-  workType: ["دائمة", "مؤقتة", "موسمية"],
   sector: ["حكومي", "عام / أعمال عام", "خاص"],
   gender: ["ذكر", "أنثى"],
 };
