@@ -1,7 +1,7 @@
 // Design reminder: form vocabulary follows the “Registry Desk” philosophy—quiet, precise, and close to the printed document.
 
-export type TemplateId = "s1" | "s6";
-export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1", s6: "نموذج س6" };
+export type TemplateId = "s1" | "s2" | "s6";
+export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1", s2: "نموذج س2", s6: "نموذج س6" };
 export type RecordStatus = "مسودة" | "جاهز" | "ناقص";
 export type ValidationIssue = { key: keyof PersonRecord; message: string };
 
@@ -50,6 +50,11 @@ export type PersonRecord = {
   endDate: string;
   endReason: string;
   address: string;
+  noticeDate: string;
+  taxRegistrationNumber: string;
+  commercialRegistrationNumber: string;
+  unifiedCommercialRegistrationNumber: string;
+  declarationRole: string;
 };
 
 export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = [
@@ -96,6 +101,11 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "endDate", label: "تاريخ انتهاء الاشتراك (DD/MM/YYYY)" },
   { key: "endReason", label: "سبب انتهاء الاشتراك" },
   { key: "address", label: "العنوان" },
+  { key: "noticeDate", label: "تاريخ الإخطار (DD/MM/YYYY)" },
+  { key: "taxRegistrationNumber", label: "رقم التسجيل الضريبي" },
+  { key: "commercialRegistrationNumber", label: "رقم السجل التجاري" },
+  { key: "unifiedCommercialRegistrationNumber", label: "رقم السجل التجاري الموحد" },
+  { key: "declarationRole", label: "الصفة في الإقرار" },
 ];
 
 const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
@@ -142,6 +152,11 @@ const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
   endDate: "",
   endReason: "",
   address: "",
+  noticeDate: "",
+  taxRegistrationNumber: "",
+  commercialRegistrationNumber: "",
+  unifiedCommercialRegistrationNumber: "",
+  declarationRole: "",
 };
 
 export function makeEmptyRecord(): PersonRecord {
@@ -160,14 +175,16 @@ const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
     "insuredName", "insuranceNumber", "nationalId", "establishmentName", "establishmentNumber",
     "endDate", "endReason", "address",
   ],
+  s2: ["insuredName", "insuranceNumber", "nationalId", "startDate", "basicWage", "totalWage"],
 };
 
 const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ key, label }) => [key, label]));
 const digitsOnlyFields: Array<keyof PersonRecord> = [
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
+  "taxRegistrationNumber", "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
 ];
-const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate"];
+const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate", "noticeDate"];
 const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage"];
 
 export function normalizeDigits(value: unknown) {
@@ -211,6 +228,12 @@ export function validateRecord(record: PersonRecord, template: TemplateId = "s1"
   for (const key of moneyFields) {
     const value = normalizeDigits(record[key]).replace(",", ".");
     if (value && (!/^\d+(\.\d{1,2})?$/.test(value) || Number(value) < 0)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: قيمة رقمية غير صحيحة` });
+  }
+  if (template === "s2") {
+    for (const key of ["basicWage", "totalWage"] as const) {
+      const value = normalizeDigits(record[key]);
+      if (value && !/^\d+$/.test(value)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: يجب إدخال أرقام صحيحة فقط` });
+    }
   }
   if (record.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.email)) issues.push({ key: "email", message: "البريد الإلكتروني: صيغة غير صحيحة" });
   if (record.startDate && record.birthDate && record.startDate < record.birthDate) issues.push({ key: "startDate", message: "تاريخ بدء الاشتراك يسبق تاريخ الميلاد" });
@@ -285,6 +308,11 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   endDate: ["تاريخ انتهاء الاشتراك", "تاريخ انتهاء الاشتراك (DD/MM/YYYY)", "تاريخ الانتهاء", "enddate", "subscriptionenddate"],
   endReason: ["سبب انتهاء الاشتراك", "سبب الانتهاء", "endreason", "subscriptionendreason"],
   address: ["العنوان", "عنوان مقدم الطلب", "address"],
+  noticeDate: ["تاريخ الإخطار", "تاريخ الإخطار (DD/MM/YYYY)", "noticedate"],
+  taxRegistrationNumber: ["رقم التسجيل الضريبي", "رقم التسجيل الضريبى", "taxregistrationnumber"],
+  commercialRegistrationNumber: ["رقم السجل التجاري", "رقم السجل التجارى", "commercialregistrationnumber"],
+  unifiedCommercialRegistrationNumber: ["رقم السجل التجاري الموحد", "رقم السجل التجارى الموحد", "unifiedcommercialregistrationnumber"],
+  declarationRole: ["الصفة في الإقرار", "الصفة فى الإقرار", "صفة المقر", "declarationrole"],
 };
 
 export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
