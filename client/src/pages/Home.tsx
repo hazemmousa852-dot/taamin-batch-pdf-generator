@@ -163,7 +163,6 @@ const fieldGroups: FieldGroup[] = [
       { key: "phone", label: "التليفون", placeholder: "رقم الهاتف", type: "number" },
       { key: "email", label: "البريد الإلكتروني", placeholder: "name@company.com", type: "email" },
       { key: "employer", label: "جهة العمل", placeholder: "جهة العمل" },
-      { key: "manager", label: "المدير المسؤول", placeholder: "اسم المسؤول" },
       { key: "releaseDate", label: "تحريرًا في", placeholder: "تاريخ التحرير", type: "date" },
     ],
     },
@@ -342,7 +341,7 @@ export default function Home() {
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
       const peopleSheet = workbook.Sheets["بيانات المؤمن عليهم"] ?? workbook.Sheets[workbook.SheetNames.at(-1)!];
-      const sharedSheet = workbook.Sheets["بيانات المنشأة والمفوض"];
+      const sharedSheet = workbook.Sheets["البيانات الثابتة"] ?? workbook.Sheets["بيانات المنشأة والمفوض"];
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(peopleSheet, { defval: "" });
       const sharedRow = sharedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sharedSheet, { defval: "" })[0] : undefined;
       const sharedRecord = sharedRow ? mapExcelRow(sharedRow) : undefined;
@@ -386,10 +385,10 @@ export default function Home() {
     sharedSheet["!cols"] = sharedHeaders.map(() => ({ wch: 24 }));
     peopleSheet["!cols"] = personHeaders.map(() => ({ wch: 22 }));
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sharedSheet, "بيانات المنشأة والمفوض");
+    XLSX.utils.book_append_sheet(workbook, sharedSheet, template === "s2" ? "البيانات الثابتة" : "بيانات المنشأة والمفوض");
     XLSX.utils.book_append_sheet(workbook, peopleSheet, "بيانات المؤمن عليهم");
     const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
-    downloadBlob(data, "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    downloadBlob(data, template === "s2" ? "قالب-بيانات-س2.xlsx" : "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     toast.success("تم تنزيل قالب Excel");
   }
 
@@ -602,7 +601,7 @@ export default function Home() {
             </div>
 
             <aside className="preview-panel">
-              <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / 2</span></div>
+              <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / {template === "s2" ? "1" : "2"}</span></div>
               <div className="preview-frame"><div className="preview-paper preview-pdf-paper">{previewImage ? <img className="preview-rendered-image" src={previewImage} alt={`معاينة ${TEMPLATE_LABELS[template]} بالبيانات الحالية`} /> : <div className="preview-loading">{previewState === "error" ? "تعذر إنشاء المعاينة" : "جاري تجهيز النموذج..."}</div>}</div><div className="preview-control"><button aria-label="تصغير المعاينة"><ChevronDown size={14} /></button><span>100%</span><button aria-label="تكبير المعاينة"><Plus size={14} /></button></div></div>
               <div className="preview-note"><div className="note-seal small"><Check size={14} /></div><div><strong>معاينة القالب الأصلي</strong><p>تُعرض الصفحة الأولى من PDF الفعلي بالبيانات الحالية، ويمكن تنزيل الملف كاملًا من الزر أدناه.</p></div></div>
               <Button className="full-preview-button" variant="outline" onClick={downloadSelected}><Printer size={15} /> معاينة / تنزيل الصفحة</Button>
