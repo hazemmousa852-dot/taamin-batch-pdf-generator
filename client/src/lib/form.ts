@@ -56,6 +56,7 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "insuredName", label: "اسم المؤمن عليه" },
   { key: "nationalId", label: "الرقم القومي" },
   { key: "insuranceNumber", label: "الرقم التأميني" },
+  { key: "startDate", label: "تاريخ بداية الاشتراك (YYYY-MM-DD)" },
   { key: "establishmentName", label: "اسم المنشأة" },
   { key: "establishmentNumber", label: "رقم المنشأة" },
   { key: "establishmentType", label: "نوع المنشأة" },
@@ -64,7 +65,6 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "profession", label: "المهنة" },
   { key: "professionCode", label: "كود المهنة" },
   { key: "sector", label: "القطاع" },
-  { key: "startDate", label: "تاريخ بدء الاشتراك" },
   { key: "birthDate", label: "تاريخ الميلاد" },
   { key: "gender", label: "النوع" },
   { key: "category", label: "الفئة" },
@@ -202,6 +202,8 @@ export function validateRecord(record: PersonRecord, template: TemplateId = "s1"
   }
   if (record.nationalId && normalizeDigits(record.nationalId).length !== 14) issues.push({ key: "nationalId", message: "الرقم القومي: يجب أن يتكون من 14 رقمًا" });
   if (record.applicantNationalId && normalizeDigits(record.applicantNationalId).length !== 14) issues.push({ key: "applicantNationalId", message: "الرقم القومي لمقدم الطلب: يجب أن يتكون من 14 رقمًا" });
+  if (record.phone && normalizeDigits(record.phone).length !== 11) issues.push({ key: "phone", message: "التليفون: يجب أن يتكون من 11 رقمًا" });
+  if (record.applicantPhone && normalizeDigits(record.applicantPhone).length !== 11) issues.push({ key: "applicantPhone", message: "تليفون مقدم الطلب: يجب أن يتكون من 11 رقمًا" });
   for (const key of dateFields) {
     const value = record[key].trim();
     if (value && !isValidDate(value)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: تاريخ غير صحيح` });
