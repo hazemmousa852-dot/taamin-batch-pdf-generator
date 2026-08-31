@@ -38,9 +38,11 @@ describe("official PDF field maps", () => {
     expect(form.getTextField("Text Field3").getText()).toBe(record.applicantInsuranceNumber);
     expect(form.getTextField("ةنهلما_1").getText()).toBe(record.qualification);
     expect(form.getTextField("ةنهلما").getText()).toBe(record.profession);
-    expect(form.getTextField("Text Field10").getText()).toBe("19");
-    expect(form.getTextField("Text Field9").getText()).toBe("05");
-    expect(form.getTextField("Text Field8").getText()).toBe("2024");
+    expect(form.getTextField("Text Field2").getText()).toBe("19");
+    expect(form.getTextField("Text Field1").getText()).toBe("05");
+    expect(form.getTextField("Text Field0").getText()).toBe("2024");
+    expect(form.getTextField("Text Field4").getText()).toBe("2500");
+    expect(form.getTextField("Text Field5").getText()).toBe("4000");
     expect(form.getTextField("fill_6").getText()).toBe(record.workType);
     expect(form.getTextField("fill_7").getText()).toBe("12");
     expect(form.getTextField(": عاطقلا").getText()).toBe(record.sector);
