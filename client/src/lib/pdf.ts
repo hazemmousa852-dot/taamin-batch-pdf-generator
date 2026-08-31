@@ -38,8 +38,11 @@ const s1BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   nationalId: ["ةيــــــــــــسنلجا_1"], applicantNationalId: ["مقر: ىموق"],
 };
 const s1BoxCounts = new Map<string, number>([
-  ["أشنلما مقرة", 9], [":نييمأتلا اهمقر", 9], ["Text Field3", 11],
-  [":يــــنيمأتلا مـــقرلا", 9], ["ةيــــــــــــسنلجا_1", 14], ["مقر: ىموق", 14],
+  ["أشنلما مقرة", 9], [":نييمأتلا اهمقر", 9], ["Text Field3", 10],
+  [":يــــنيمأتلا مـــقرلا", 10], ["ةيــــــــــــسنلجا_1", 14], ["مقر: ىموق", 14],
+  ["Text Field10", 2], ["Text Field9", 2], ["Text Field8", 4],
+  ["Text Field2", 2], ["Text Field1", 2], ["Text Field0", 4],
+  ["Text Field4", 6], ["Text Field5", 6], ["%", 3],
 ]);
 const s1DateBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   startDate: ["Text Field10", "Text Field9", "Text Field8"], increaseDate: ["Text Field2", "Text Field1", "Text Field0"],
@@ -56,6 +59,7 @@ const s6BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
 };
 const s6BoxCounts = new Map<string, number>([
   ["موقلا مقري", 14], [":هأشنلما مسا_1", 9], [":نييمأتلا اهمقر", 9], [": يـموقلا مقرلا", 14],
+  ["Text Field2", 2], ["Text Field3", 2], ["Text Field4", 4],
 ]);
 const checkboxBindings: Partial<Record<keyof PersonRecord, Record<string, string>>> = {
   category: { "عاملين لدى الغير": "يرغلا ىدل ينلماع", "أصحاب أعمال": "لامعأ باحصأشنم ملهآت", "عمالة غير منتظمة": "زباخلماب ينلماعلا" },
@@ -253,7 +257,11 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
   }
   const textBindings = template === "s6" ? s6TextBindings : s1TextBindings;
   const boxBindings = template === "s6" ? s6BoxBindings : s1BoxBindings;
-  for (const key of Object.keys(textBindings) as Array<keyof PersonRecord>) if (record[key]) for (const name of textBindings[key] ?? []) setText(form, name, record[key], arabicFont);
+  for (const key of Object.keys(textBindings) as Array<keyof PersonRecord>) if (record[key]) {
+    const digits = key === "phone" || key === "applicantPhone" ? cleanDigits(record[key]) : "";
+    const value = digits && digits.length === 10 ? `0${digits}` : record[key];
+    for (const name of textBindings[key] ?? []) setText(form, name, value, arabicFont);
+  }
   for (const key of Object.keys(boxBindings) as Array<keyof PersonRecord>) if (record[key]) setBoxes(form, boxBindings[key] ?? [], record[key], arabicFont);
   if (template === "s1") {
     for (const key of Object.keys(s1DateBindings) as Array<keyof PersonRecord>) if (record[key] && (key !== "increaseDate" || /^\d{4}-\d{2}-\d{2}$/.test(record[key]))) setDateFields(form, s1DateBindings[key] ?? [], record[key], arabicFont);
