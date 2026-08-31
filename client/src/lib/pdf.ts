@@ -38,8 +38,8 @@ const s1BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   nationalId: ["ةيــــــــــــسنلجا_1"], applicantNationalId: ["مقر: ىموق"],
 };
 const s1BoxCounts = new Map<string, number>([
-  ["أشنلما مقرة", 9], [":نييمأتلا اهمقر", 9], ["Text Field3", 10],
-  [":يــــنيمأتلا مـــقرلا", 10], ["ةيــــــــــــسنلجا_1", 14], ["مقر: ىموق", 14],
+  ["أشنلما مقرة", 9], [":نييمأتلا اهمقر", 9], ["Text Field3", 9],
+  [":يــــنيمأتلا مـــقرلا", 9], ["ةيــــــــــــسنلجا_1", 14], ["مقر: ىموق", 14],
   ["Text Field10", 2], ["Text Field9", 2], ["Text Field8", 4],
   ["Text Field2", 2], ["Text Field1", 2], ["Text Field0", 4],
   ["Text Field4", 6], ["Text Field5", 6], ["%", 3],
@@ -59,6 +59,7 @@ const s6BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
 };
 const s6BoxCounts = new Map<string, number>([
   ["موقلا مقري", 14], [":هأشنلما مسا_1", 9], [":نييمأتلا اهمقر", 9], [": يـموقلا مقرلا", 14],
+  ["Text Field0", 9], [": نييمأتلا مقرلا", 8], [S6_PAGE2_INSURANCE, 9],
   ["Text Field2", 2], ["Text Field3", 2], ["Text Field4", 4],
 ]);
 const checkboxBindings: Partial<Record<keyof PersonRecord, Record<string, string>>> = {
