@@ -57,6 +57,9 @@ const checkboxBindings: Partial<Record<keyof PersonRecord, Record<string, string
 };
 
 function hasArabic(value: string) { return /[\u0600-\u06ff]/.test(value); }
+function toArabicNumerals(value: string) {
+  return value.replace(/\d/g, (digit) => "٠١٢٣٤٥٦٧٨٩"[Number(digit)]);
+}
 export function toPdfText(rawValue: string) {
   const value = normalizeText(rawValue);
   if (!value || !hasArabic(value) || !ArabicShaper) return value;
@@ -94,7 +97,8 @@ function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: 
   // shorter than valid insurance and phone numbers. Preserve the user's full
   // value and let the generated appearance reduce the font size to fit.
   if (maxLength && normalized.length > maxLength) textField.removeMaxLength();
-  const pdfText = toPdfText(normalized);
+  const shapedText = toPdfText(normalized);
+  const pdfText = typeof document === "undefined" ? shapedText : toArabicNumerals(shapedText);
   textField.setText(pdfText);
   textField.setAlignment(alignment);
   // Match the printed form's text scale. Start at 12 pt and shrink only when
@@ -157,8 +161,9 @@ async function bakeArabicText(
   for (const candidate of form.getFields()) {
     if (!(candidate instanceof PDFTextField)) continue;
     const field = candidate;
-    const text = normalizeText(field.getText() ?? "");
-    if (!hasArabic(text)) continue;
+    const rawText = normalizeText(field.getText() ?? "");
+    if (!hasArabic(rawText)) continue;
+    const text = toArabicNumerals(rawText);
     const alignment = field.getAlignment();
     let placed = false;
     for (const widget of field.acroField.getWidgets()) {
@@ -198,7 +203,7 @@ async function bakeArabicText(
     context.direction = "rtl";
     context.textBaseline = "middle";
     context.fillStyle = "#000";
-    let fontSize = Math.min(12, Math.max(8, overlay.height * 0.72));
+    let fontSize = Math.min(14, Math.max(10, overlay.height * 0.84));
     context.font = `${fontSize * scale}px TaaminArabic`;
     const maxWidth = Math.max(8, (overlay.width - 5) * scale);
     while (fontSize > 7.5 && context.measureText(overlay.text).width > maxWidth) {
