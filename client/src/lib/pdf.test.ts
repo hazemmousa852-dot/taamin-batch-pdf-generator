@@ -47,6 +47,7 @@ describe("official PDF field maps", () => {
     expect(form.getTextField("fill_5").getText()).toBe(record.buildingNumber);
     expect(form.getCheckBox("ئادتبلاا بيطلا فشكلا ءافيتساي").isChecked()).toBe(true);
     expect(form.getCheckBox("أشنلما عونةطنم :ي").isChecked()).toBe(true);
+    expect(form.getTextField("fill_4").isReadOnly()).toBe(true);
   });
 
   it("places S6 repeated values and date in the correct fields", async () => {
