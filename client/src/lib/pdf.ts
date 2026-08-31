@@ -37,6 +37,10 @@ const s1BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   establishmentNumber: ["أشنلما مقرة", ":نييمأتلا اهمقر"], applicantInsuranceNumber: ["Text Field3"], insuranceNumber: [":يــــنيمأتلا مـــقرلا"],
   nationalId: ["ةيــــــــــــسنلجا_1"], applicantNationalId: ["مقر: ىموق"],
 };
+const s1BoxCounts = new Map<string, number>([
+  ["أشنلما مقرة", 9], [":نييمأتلا اهمقر", 9], ["Text Field3", 11],
+  [":يــــنيمأتلا مـــقرلا", 9], ["ةيــــــــــــسنلجا_1", 14], ["مقر: ىموق", 14],
+]);
 const s1DateBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   startDate: ["Text Field10", "Text Field9", "Text Field8"], increaseDate: ["Text Field2", "Text Field1", "Text Field0"],
 };
@@ -50,6 +54,9 @@ const s6TextBindings: Partial<Record<keyof PersonRecord, string[]>> = {
 const s6BoxBindings: Partial<Record<keyof PersonRecord, string[]>> = {
   applicantNationalId: ["موقلا مقري"], establishmentNumber: [":هأشنلما مسا_1", ":نييمأتلا اهمقر"], nationalId: [": يـموقلا مقرلا"],
 };
+const s6BoxCounts = new Map<string, number>([
+  ["موقلا مقري", 14], [":هأشنلما مسا_1", 9], [":نييمأتلا اهمقر", 9], [": يـموقلا مقرلا", 14],
+]);
 const checkboxBindings: Partial<Record<keyof PersonRecord, Record<string, string>>> = {
   category: { "عاملين لدى الغير": "يرغلا ىدل ينلماع", "أصحاب أعمال": "لامعأ باحصأشنم ملهآت", "عمالة غير منتظمة": "زباخلماب ينلماعلا" },
   medicalExam: { "نعم": "ئادتبلاا بيطلا فشكلا ءافيتساي", "لا": "لا" },
@@ -153,10 +160,11 @@ async function bakeFormText(
   form: ReturnType<PDFDocument["getForm"]>,
   font: PDFFont,
   fontBytes: ArrayBuffer,
+  boxCounts: Map<string, number>,
 ) {
   if (typeof document === "undefined" || typeof FontFace === "undefined") return false;
   const pages = pdfDoc.getPages();
-  const overlays: Array<{ pageIndex: number; x: number; y: number; width: number; height: number; text: string; alignment: TextAlignment }> = [];
+  const overlays: Array<{ pageIndex: number; x: number; y: number; width: number; height: number; text: string; alignment: TextAlignment; boxCount?: number }> = [];
 
   for (const candidate of form.getFields()) {
     if (!(candidate instanceof PDFTextField)) continue;
@@ -178,7 +186,7 @@ async function bakeFormText(
       }
       if (pageIndex < 0) continue;
       const { x, y, width, height } = widget.getRectangle();
-      overlays.push({ pageIndex, x, y, width, height, text, alignment });
+      overlays.push({ pageIndex, x, y, width, height, text, alignment, boxCount: boxCounts.get(field.getName()) });
       placed = true;
     }
     // Flatten a blank appearance; Arabic and digit-only values are painted on
@@ -213,7 +221,17 @@ async function bakeFormText(
       context.font = `${fontSize * scale}px TaaminArabic`;
     }
     context.textAlign = "center";
-    context.fillText(overlay.text, canvas.width / 2, canvas.height / 2, maxWidth);
+    if (overlay.boxCount && /^\d+$/.test(normalizeDigits(overlay.text))) {
+      const cellWidth = canvas.width / overlay.boxCount;
+      let digitSize = Math.min(fontSize, (cellWidth / scale) * 0.72, overlay.height * 0.82);
+      digitSize = Math.max(7.5, digitSize);
+      context.font = `${digitSize * scale}px TaaminArabic`;
+      Array.from(overlay.text).slice(0, overlay.boxCount).forEach((digit, index) => {
+        context.fillText(digit, (index + 0.5) * cellWidth, canvas.height / 2, cellWidth * 0.82);
+      });
+    } else {
+      context.fillText(overlay.text, canvas.width / 2, canvas.height / 2, maxWidth);
+    }
     const pngBlob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("تعذر رسم النص العربي")), "image/png"));
     const png = await pdfDoc.embedPng(await pngBlob.arrayBuffer());
     pages[overlay.pageIndex].drawImage(png, { x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height });
@@ -244,7 +262,7 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     if (record.medicalExam) setCheckboxes(form, "medicalExam", record.medicalExam);
     if (record.establishmentType) setCheckboxes(form, "establishmentType", record.establishmentType);
   } else if (record.endDate) setDateFields(form, ["Text Field2", "Text Field3", "Text Field4"], record.endDate, arabicFont);
-  const baked = await bakeFormText(pdfDoc, form, arabicFont, fontBytes);
+  const baked = await bakeFormText(pdfDoc, form, arabicFont, fontBytes, template === "s6" ? s6BoxCounts : s1BoxCounts);
   if (!baked) for (const field of form.getFields()) field.enableReadOnly();
   // Every populated text field is updated in setText. Avoid updating every
   // field in the source PDF here: some unused official fields have no /DA
