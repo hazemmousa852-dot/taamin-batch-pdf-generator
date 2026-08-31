@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -167,8 +168,8 @@ const fieldGroups: FieldGroup[] = [
   {
     id: "s6",
     number: "05",
-    title: "إخطار انتهاء الاشتراك",
-    note: "حقول نموذج س6 الخاصة بمقدم الطلب وسبب الانتهاء",
+    title: "بيانات مقدم الطلب",
+    note: "بيانات مقدم الطلب وحقول انتهاء الاشتراك في نموذج س6",
     icon: FileText,
     fields: [
       { key: "applicantName", label: "مقدم الطلب", placeholder: "اسم مقدم الطلب" },
@@ -210,6 +211,43 @@ const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
   medicalExam: ["نعم", "لا"],
   establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
 };
+const EXCEL_LIST_OPTIONS: Partial<Record<EditableKey, string[]>> = {
+  applicantRole: ["صاحب العمل", "المسؤول", "مفوض"],
+  establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
+  category: ["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"],
+  medicalExam: ["نعم", "لا"],
+  workType: ["دائمة", "مؤقتة", "موسمية"],
+  sector: ["حكومي", "عام / أعمال عام", "خاص"],
+  gender: ["ذكر", "أنثى"],
+};
+function excelColumn(index: number) {
+  let value = index + 1;
+  let result = "";
+  while (value) { value -= 1; result = String.fromCharCode(65 + (value % 26)) + result; value = Math.floor(value / 26); }
+  return result;
+}
+function xmlEscape(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+async function addExcelValidations(data: ArrayBuffer, sheets: Array<{ path: string; headers: typeof EXCEL_HEADERS }>) {
+  const zip = await JSZip.loadAsync(data);
+  for (const sheet of sheets) {
+    const entry = zip.file(sheet.path);
+    if (!entry) continue;
+    let xml = await entry.async("string");
+    const rules: string[] = [];
+    sheet.headers.forEach((header, index) => {
+      const column = excelColumn(index);
+      const options = EXCEL_LIST_OPTIONS[header.key as EditableKey];
+      if (options) rules.push(`<dataValidation type="list" allowBlank="1" showErrorMessage="1" errorTitle="اختيار غير صحيح" error="اختر قيمة من القائمة" sqref="${column}2:${column}1000"><formula1>&quot;${xmlEscape(options.join(","))}&quot;</formula1></dataValidation>`);
+      const length = header.key === "nationalId" || header.key === "applicantNationalId" ? 14 : header.key === "phone" || header.key === "applicantPhone" ? 11 : 0;
+      if (length) rules.push(`<dataValidation type="textLength" operator="equal" allowBlank="1" showErrorMessage="1" errorTitle="عدد أرقام غير صحيح" error="يجب إدخال ${length} رقمًا" sqref="${column}2:${column}1000"><formula1>${length}</formula1></dataValidation>`);
+    });
+    if (rules.length) xml = xml.replace("</worksheet>", `<dataValidations count="${rules.length}">${rules.join("")}</dataValidations></worksheet>`);
+    zip.file(sheet.path, xml);
+  }
+  return zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
+}
 function initials(value: string) {
   return value
     .trim()
@@ -350,7 +388,7 @@ export default function Home() {
     }
   }
 
-  function downloadTemplate() {
+  async function downloadTemplate() {
     const sharedHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
     const personHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && TEMPLATE_FIELDS[template].has(item.key as EditableKey) && !SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
     const sharedSheet = XLSX.utils.aoa_to_sheet([
@@ -366,7 +404,11 @@ export default function Home() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sharedSheet, "بيانات المنشأة والمفوض");
     XLSX.utils.book_append_sheet(workbook, peopleSheet, "بيانات المؤمن عليهم");
-    const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const rawData = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+    const data = await addExcelValidations(rawData, [
+      { path: "xl/worksheets/sheet1.xml", headers: sharedHeaders },
+      { path: "xl/worksheets/sheet2.xml", headers: personHeaders },
+    ]);
     downloadBlob(data, "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     toast.success("تم تنزيل قالب Excel");
   }
@@ -571,7 +613,7 @@ export default function Home() {
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
                     <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
                     <div className="fields-grid">
-                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : undefined} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && activeRecord[field.key] && <span className="field-error">{issue}</span>}</div>; })}
+                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const maxLength = field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : field.key === "phone" || field.key === "applicantPhone" ? 11 : undefined; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={maxLength} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && activeRecord[field.key] && <span className="field-error">{issue}</span>}</div>; })}
                     </div>
                   </div>;
                 })}
