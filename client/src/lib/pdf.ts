@@ -161,6 +161,11 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     if (record.medicalExam) setCheckboxes(form, "medicalExam", record.medicalExam);
     if (record.establishmentType) setCheckboxes(form, "establishmentType", record.establishmentType);
   } else if (record.endDate) setDateFields(form, ["Text Field2", "Text Field3", "Text Field4"], record.endDate, arabicFont);
+  // Lock the completed fields so PDF viewers use the Arabic appearance streams
+  // we generated instead of attempting to redraw the Unicode value with their
+  // own non-Arabic form engine. The document remains an interactive AcroForm,
+  // but its completed values cannot be visually corrupted by Chrome/Edge.
+  for (const field of form.getFields()) field.enableReadOnly();
   // Every populated text field is updated in setText. Avoid updating every
   // field in the source PDF here: some unused official fields have no /DA
   // font operator and make pdf-lib throw "No Tf operator found".
