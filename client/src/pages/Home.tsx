@@ -127,6 +127,9 @@ const fieldGroups: FieldGroup[] = [
       { key: "contributionCode", label: "كود الاشتراك", placeholder: "كود الاشتراك" },
       { key: "workType", label: "نوع المدة", placeholder: "نوع المدة" },
       { key: "medicalExam", label: "الكشف الطبي الابتدائي", placeholder: "نعم / لا" },
+      { key: "taxRegistrationNumber", label: "رقم التسجيل الضريبي", placeholder: "رقم التسجيل الضريبي", type: "number" },
+      { key: "commercialRegistrationNumber", label: "رقم السجل التجاري", placeholder: "رقم السجل التجاري", type: "number" },
+      { key: "unifiedCommercialRegistrationNumber", label: "رقم السجل التجاري الموحد", placeholder: "رقم السجل التجاري الموحد", type: "number" },
     ],
   },
   {
@@ -176,6 +179,9 @@ const fieldGroups: FieldGroup[] = [
       { key: "applicantInsuranceNumber", label: "الرقم التأميني لمقدم الطلب", placeholder: "الرقم التأميني", type: "number" },
       { key: "applicantPhone", label: "رقم تليفون مقدم الطلب", placeholder: "رقم الهاتف", type: "number" },
       { key: "applicantNationalId", label: "الرقم القومي لمقدم الطلب", placeholder: "الرقم القومي", type: "number" },
+      { key: "manager", label: "اسم المدير المسؤول", placeholder: "الاسم الذي سيظهر في الإقرار" },
+      { key: "declarationRole", label: "الصفة في الإقرار", placeholder: "مثال: المدير المسؤول" },
+      { key: "noticeDate", label: "تاريخ الإخطار", placeholder: "تاريخ أعلى الصفحة", type: "date" },
       { key: "endDate", label: "تاريخ انتهاء الاشتراك", placeholder: "تاريخ الانتهاء", type: "date" },
       { key: "endReason", label: "سبب انتهاء الاشتراك", placeholder: "سبب الانتهاء" },
       { key: "address", label: "العنوان", placeholder: "العنوان بالتفصيل", wide: true },
@@ -196,14 +202,22 @@ const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
     "insuredName", "nationalId", "insuranceNumber", "establishmentName", "establishmentNumber", "office",
     "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId", "endDate", "endReason", "address",
   ]),
+  s2: new Set([
+    "office", "establishmentNumber", "noticeDate", "applicantName", "applicantRole", "applicantNationalId",
+    "applicantInsuranceNumber", "applicantPhone", "taxRegistrationNumber", "establishmentName", "sector",
+    "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber", "manager", "declarationRole", "releaseDate",
+    "insuredName", "insuranceNumber", "nationalId", "startDate", "basicWage", "totalWage",
+  ]),
 };
 const IDENTIFIER_FIELDS = new Set<EditableKey>([
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
+  "taxRegistrationNumber", "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
 ]);
 const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
   "office", "establishmentName", "establishmentNumber", "establishmentType", "address",
   "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
+  "noticeDate", "taxRegistrationNumber", "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber", "manager", "declarationRole", "releaseDate",
 ]);
 const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
   applicantRole: ["صاحب العمل", "المسؤول", "مفوض"],
@@ -355,8 +369,9 @@ export default function Home() {
   }
 
   async function downloadTemplate() {
-    const sharedHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
-    const alwaysIncludedPersonFields = new Set<EditableKey>(["endDate", "endReason"]);
+    const sharedHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && SHARED_EXCEL_FIELDS.has(item.key as EditableKey)
+      && (template !== "s2" || TEMPLATE_FIELDS.s2.has(item.key as EditableKey)));
+    const alwaysIncludedPersonFields = template === "s2" ? new Set<EditableKey>() : new Set<EditableKey>(["endDate", "endReason"]);
     const personHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id"
       && (TEMPLATE_FIELDS[template].has(item.key as EditableKey) || alwaysIncludedPersonFields.has(item.key as EditableKey))
       && !SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
@@ -482,7 +497,7 @@ export default function Home() {
           <section className="page-intro">
             <div className="intro-copy">
               <div className="breadcrumb"><span>لوحة النماذج</span><ArrowLeft size={13} /><strong>{TEMPLATE_LABELS[template]}</strong></div>
-              <p className="eyebrow"><span className="eyebrow-line" /> {template === "s6" ? "إخطار انتهاء اشتراك مؤمن عليه" : "نموذج الاشتراك المؤمن عليه"}</p>
+              <p className="eyebrow"><span className="eyebrow-line" /> {template === "s6" ? "إخطار انتهاء اشتراك مؤمن عليه" : template === "s2" ? "تحديث بيانات أجور المؤمن عليهم" : "نموذج الاشتراك المؤمن عليه"}</p>
               <h1>من جدول واحد<br /><em>إلى نماذج جاهزة.</em></h1>
               <p className="intro-description">اكتب بيانات شخص واحد أو ارفع ملف Excel كاملًا. راجع كل سجل، ثم احصل على ملفات PDF مرتبة وجاهزة للطباعة.</p>
               <div className="intro-actions">
@@ -497,7 +512,7 @@ export default function Home() {
             <div className="intro-visual">
               <img className="visual-paper" src={PAPER_URL} alt="" />
               <div className="hero-form-artifact"><img src={template === "s6" ? S6_PREVIEW_URL : FORM_URL} alt="" /><span>{TEMPLATE_LABELS[template]}</span></div>
-              <div className="visual-overlay"><span>{template === "s6" ? "س6" : "س1"}</span><b>{template === "s6" ? <>إخطار<br />اشتراك</> : <>وثيقة<br />تأمين</>}</b><small>جاهز للطباعة</small></div>
+              <div className="visual-overlay"><span>{template === "s6" ? "س6" : template === "s2" ? "س2" : "س1"}</span><b>{template === "s6" ? <>إخطار<br />اشتراك</> : template === "s2" ? <>تحديث<br />أجور</> : <>وثيقة<br />تأمين</>}</b><small>جاهز للطباعة</small></div>
               <div className="visual-ribbon"><FileSpreadsheet size={17} /><span>Excel → PDF</span></div>
               <div className="visual-stamp"><Check size={16} /> جاهز</div>
             </div>
