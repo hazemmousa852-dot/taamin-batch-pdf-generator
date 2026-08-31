@@ -301,6 +301,11 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
       result[key] = `${year}-${month}-${day}`;
     } else {
       result[key] = normalizeText(rawValue);
+      // Excel often stores Egyptian phone numbers as numeric cells and drops
+      // the leading zero. Restore it while importing the fixed 11-digit fields.
+      if ((key === "phone" || key === "applicantPhone") && /^\d{1,10}$/.test(normalizeDigits(result[key]))) {
+        result[key] = normalizeDigits(result[key]).padStart(11, "0");
+      }
     }
   });
   return result;
