@@ -38,10 +38,10 @@ describe("Arabic form validation", () => {
     expect(record.startDate).toBe("2026-08-31");
     expect(record.increaseDate).toBe("2026-09-05");
   });
-  it("restores leading zeros for ten-box insurance numbers imported from Excel", () => {
+  it("keeps insurance numbers exactly as entered in Excel", () => {
     const record = mapExcelRow({ "الرقم التأميني": 123456789, "الرقم التأميني لمقدم الطلب": 987654321 });
-    expect(record.insuranceNumber).toBe("0123456789");
-    expect(record.applicantInsuranceNumber).toBe("0987654321");
+    expect(record.insuranceNumber).toBe("123456789");
+    expect(record.applicantInsuranceNumber).toBe("987654321");
   });
 });
 
