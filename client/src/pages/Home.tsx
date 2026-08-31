@@ -260,7 +260,8 @@ export default function Home() {
         if (cancelled) return;
         setPreviewImage(canvas.toDataURL("image/png"));
         setPreviewState("ready");
-      } catch {
+      } catch (error) {
+        console.error("PDF preview generation failed", error);
         if (!cancelled) setPreviewState("error");
       }
     }, 250);
