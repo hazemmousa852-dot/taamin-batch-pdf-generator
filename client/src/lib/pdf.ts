@@ -85,11 +85,11 @@ function fittedFontSize(textField: ReturnType<typeof getTextField>, text: string
   const widget = textField.acroField.getWidgets()[0];
   const width = widget?.getRectangle().width ?? 120;
   const availableWidth = Math.max(8, width - 5);
-  let size = 12;
+  let size = 14;
   while (size > 7.5 && font.widthOfTextAtSize(text, size) > availableWidth) size -= 0.5;
   return size;
 }
-function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string, font: PDFFont, alignment: TextAlignment = TextAlignment.Right) {
+function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string, font: PDFFont, alignment: TextAlignment = TextAlignment.Center) {
   const textField = getTextField(form, name);
   const normalized = normalizeText(value);
   const maxLength = typeof textField.getMaxLength === "function" ? textField.getMaxLength() : undefined;
@@ -210,9 +210,8 @@ async function bakeArabicText(
       fontSize -= 0.5;
       context.font = `${fontSize * scale}px TaaminArabic`;
     }
-    const centered = overlay.alignment === TextAlignment.Center;
-    context.textAlign = centered ? "center" : "right";
-    context.fillText(overlay.text, centered ? canvas.width / 2 : canvas.width - (2 * scale), canvas.height / 2, maxWidth);
+    context.textAlign = "center";
+    context.fillText(overlay.text, canvas.width / 2, canvas.height / 2, maxWidth);
     const pngBlob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("تعذر رسم النص العربي")), "image/png"));
     const png = await pdfDoc.embedPng(await pngBlob.arrayBuffer());
     pages[overlay.pageIndex].drawImage(png, { x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height });
