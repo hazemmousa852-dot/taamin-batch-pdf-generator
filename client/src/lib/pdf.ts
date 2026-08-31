@@ -49,7 +49,7 @@ const s1BoxCounts = new Map<string, number>([
   ["Text Field4", 6], ["Text Field5", 6], ["%", 3],
 ]);
 const s1DateBindings: Partial<Record<keyof PersonRecord, string[]>> = {
-  startDate: ["Text Field10", "Text Field9", "Text Field8"], increaseDate: ["Text Field2", "Text Field1", "Text Field0"],
+  startDate: ["Text Field2", "Text Field1", "Text Field0"], increaseDate: ["Text Field10", "Text Field9", "Text Field8"],
 };
 
 const S6_PAGE2_INSURANCE = "ا: هيلع نمؤلما مــــــــس---------------------------------------:نييمأتلا همقر";
@@ -182,7 +182,29 @@ async function fillS2Page(records: PersonRecord[]) {
     );
   });
   await paintS2Overlays(pdfDoc, overlays, fontBytes);
-  return pdfDoc.save({ useObjectStreams: false });
+  return fitPdfToA4(await pdfDoc.save({ useObjectStreams: false }), true);
+}
+
+async function fitPdfToA4(bytes: Uint8Array, landscape: boolean) {
+  const source = await PDFDocument.load(bytes);
+  const output = await PDFDocument.create();
+  const targetWidth = landscape ? 841.89 : 595.28;
+  const targetHeight = landscape ? 595.28 : 841.89;
+  const embeddedPages = await output.embedPdf(bytes, source.getPageIndices());
+  embeddedPages.forEach((embedded, index) => {
+    const { width, height } = source.getPage(index).getSize();
+    const scale = Math.min(targetWidth / width, targetHeight / height);
+    const drawnWidth = width * scale;
+    const drawnHeight = height * scale;
+    const page = output.addPage([targetWidth, targetHeight]);
+    page.drawPage(embedded, {
+      x: (targetWidth - drawnWidth) / 2,
+      y: (targetHeight - drawnHeight) / 2,
+      width: drawnWidth,
+      height: drawnHeight,
+    });
+  });
+  return output.save({ useObjectStreams: false });
 }
 
 function sortS2Records(records: PersonRecord[]) {
@@ -201,8 +223,8 @@ function fittedFontSize(textField: ReturnType<typeof getTextField>, text: string
   const widget = textField.acroField.getWidgets()[0];
   const width = widget?.getRectangle().width ?? 120;
   const availableWidth = Math.max(8, width - 5);
-  let size = 14;
-  while (size > 7.5 && font.widthOfTextAtSize(text, size) > availableWidth) size -= 0.5;
+  let size = 16;
+  while (size > 8 && font.widthOfTextAtSize(text, size) > availableWidth) size -= 0.5;
   return size;
 }
 function setText(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string, font: PDFFont, alignment: TextAlignment = TextAlignment.Center) {
@@ -322,10 +344,10 @@ async function bakeFormText(
     context.direction = hasArabic(overlay.text) ? "rtl" : "ltr";
     context.textBaseline = "middle";
     context.fillStyle = "#000";
-    let fontSize = Math.min(14, Math.max(10, overlay.height * 0.84));
+    let fontSize = Math.min(16, Math.max(11, overlay.height * 0.9));
     context.font = `${fontSize * scale}px TaaminArabic`;
     const maxWidth = Math.max(8, (overlay.width - 5) * scale);
-    while (fontSize > 7.5 && context.measureText(overlay.text).width > maxWidth) {
+    while (fontSize > 8 && context.measureText(overlay.text).width > maxWidth) {
       fontSize -= 0.5;
       context.font = `${fontSize * scale}px TaaminArabic`;
     }
@@ -390,7 +412,8 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
   // Every populated text field is updated in setText. Avoid updating every
   // field in the source PDF here: some unused official fields have no /DA
   // font operator and make pdf-lib throw "No Tf operator found".
-  return pdfDoc.save({ useObjectStreams: false });
+  const saved = await pdfDoc.save({ useObjectStreams: false });
+  return typeof document === "undefined" ? saved : fitPdfToA4(saved, false);
 }
 
 export function safeFileName(record: PersonRecord, index = 1, template: TemplateId = "s1") {
