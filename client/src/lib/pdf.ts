@@ -231,11 +231,11 @@ async function bakeFormText(
     context.textAlign = "center";
     if (overlay.boxCount && /^\d+$/.test(normalizeDigits(overlay.text))) {
       const cellWidth = canvas.width / overlay.boxCount;
-      let digitSize = Math.min(fontSize, (cellWidth / scale) * 0.72, overlay.height * 0.82);
-      digitSize = Math.max(7.5, digitSize);
-      context.font = `${digitSize * scale}px TaaminArabic`;
+      let digitSize = Math.min((cellWidth / scale) * 0.82, overlay.height * 0.9);
+      digitSize = Math.max(10, digitSize);
+      context.font = `700 ${digitSize * scale}px TaaminArabic`;
       Array.from(overlay.text).slice(0, overlay.boxCount).forEach((digit, index) => {
-        context.fillText(digit, (index + 0.5) * cellWidth, canvas.height / 2, cellWidth * 0.82);
+        context.fillText(digit, (index + 0.5) * cellWidth, canvas.height * 0.52, cellWidth * 0.88);
       });
     } else {
       context.fillText(overlay.text, canvas.width / 2, canvas.height / 2, maxWidth);
