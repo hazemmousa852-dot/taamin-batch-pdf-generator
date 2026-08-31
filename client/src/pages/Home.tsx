@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import * as XLSX from "xlsx";
-import JSZip from "jszip";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -215,51 +214,6 @@ const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
   sector: ["حكومي", "عام / أعمال عام", "خاص"],
   gender: ["ذكر", "أنثى"],
 };
-const EXCEL_LIST_OPTIONS: Partial<Record<EditableKey, string[]>> = {
-  applicantRole: ["صاحب العمل", "المسؤول", "مفوض"],
-  establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
-  category: ["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"],
-  medicalExam: ["نعم", "لا"],
-  workType: ["دائمة", "مؤقتة", "موسمية"],
-  sector: ["حكومي", "عام / أعمال عام", "خاص"],
-  gender: ["ذكر", "أنثى"],
-};
-function excelColumn(index: number) {
-  let value = index + 1;
-  let result = "";
-  while (value) { value -= 1; result = String.fromCharCode(65 + (value % 26)) + result; value = Math.floor(value / 26); }
-  return result;
-}
-function xmlEscape(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-async function addExcelValidations(data: ArrayBuffer, sheets: Array<{ path: string; headers: typeof EXCEL_HEADERS }>) {
-  const zip = await JSZip.loadAsync(data);
-  for (const sheet of sheets) {
-    const entry = zip.file(sheet.path);
-    if (!entry) continue;
-    let xml = await entry.async("string");
-    const rules: string[] = [];
-    sheet.headers.forEach((header, index) => {
-      const column = excelColumn(index);
-      const options = EXCEL_LIST_OPTIONS[header.key as EditableKey];
-      if (options) rules.push(`<dataValidation type="list" allowBlank="1" showErrorMessage="1" errorTitle="اختيار غير صحيح" error="اختر قيمة من القائمة" sqref="${column}2:${column}1000"><formula1>&quot;${xmlEscape(options.join(","))}&quot;</formula1></dataValidation>`);
-      const length = header.key === "nationalId" || header.key === "applicantNationalId" ? 14 : header.key === "phone" || header.key === "applicantPhone" ? 11 : 0;
-      if (length) rules.push(`<dataValidation type="textLength" operator="equal" allowBlank="1" showErrorMessage="1" errorTitle="عدد أرقام غير صحيح" error="يجب إدخال ${length} رقمًا" sqref="${column}2:${column}1000"><formula1>${length}</formula1></dataValidation>`);
-    });
-    if (rules.length) {
-      const validations = `<dataValidations count="${rules.length}">${rules.join("")}</dataValidations>`;
-      // OOXML requires dataValidations before print/page settings,
-      // ignoredErrors and other trailing worksheet elements. Appending it at
-      // the very end makes Excel repair the sheet and discard its contents.
-      const trailingElement = /<(hyperlinks|printOptions|pageMargins|pageSetup|headerFooter|rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|picture|oleObjects|controls|webPublishItems|tableParts|extLst)\b/;
-      const match = trailingElement.exec(xml);
-      xml = match ? `${xml.slice(0, match.index)}${validations}${xml.slice(match.index)}` : xml.replace("</worksheet>", `${validations}</worksheet>`);
-    }
-    zip.file(sheet.path, xml);
-  }
-  return zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
-}
 function initials(value: string) {
   return value
     .trim()
@@ -419,11 +373,7 @@ export default function Home() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sharedSheet, "بيانات المنشأة والمفوض");
     XLSX.utils.book_append_sheet(workbook, peopleSheet, "بيانات المؤمن عليهم");
-    const rawData = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
-    const data = await addExcelValidations(rawData, [
-      { path: "xl/worksheets/sheet1.xml", headers: sharedHeaders },
-      { path: "xl/worksheets/sheet2.xml", headers: personHeaders },
-    ]);
+    const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
     downloadBlob(data, "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     toast.success("تم تنزيل قالب Excel");
   }
