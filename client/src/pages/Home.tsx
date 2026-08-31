@@ -247,7 +247,15 @@ async function addExcelValidations(data: ArrayBuffer, sheets: Array<{ path: stri
       const length = header.key === "nationalId" || header.key === "applicantNationalId" ? 14 : header.key === "phone" || header.key === "applicantPhone" ? 11 : 0;
       if (length) rules.push(`<dataValidation type="textLength" operator="equal" allowBlank="1" showErrorMessage="1" errorTitle="عدد أرقام غير صحيح" error="يجب إدخال ${length} رقمًا" sqref="${column}2:${column}1000"><formula1>${length}</formula1></dataValidation>`);
     });
-    if (rules.length) xml = xml.replace("</worksheet>", `<dataValidations count="${rules.length}">${rules.join("")}</dataValidations></worksheet>`);
+    if (rules.length) {
+      const validations = `<dataValidations count="${rules.length}">${rules.join("")}</dataValidations>`;
+      // OOXML requires dataValidations before print/page settings,
+      // ignoredErrors and other trailing worksheet elements. Appending it at
+      // the very end makes Excel repair the sheet and discard its contents.
+      const trailingElement = /<(hyperlinks|printOptions|pageMargins|pageSetup|headerFooter|rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|picture|oleObjects|controls|webPublishItems|tableParts|extLst)\b/;
+      const match = trailingElement.exec(xml);
+      xml = match ? `${xml.slice(0, match.index)}${validations}${xml.slice(match.index)}` : xml.replace("</worksheet>", `${validations}</worksheet>`);
+    }
     zip.file(sheet.path, xml);
   }
   return zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
@@ -639,3 +647,4 @@ export default function Home() {
     </div>
   );
 }
+
