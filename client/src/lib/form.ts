@@ -56,7 +56,7 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "insuredName", label: "اسم المؤمن عليه" },
   { key: "nationalId", label: "الرقم القومي" },
   { key: "insuranceNumber", label: "الرقم التأميني" },
-  { key: "startDate", label: "تاريخ بداية الاشتراك (YYYY-MM-DD)" },
+  { key: "startDate", label: "تاريخ بداية الاشتراك (DD/MM/YYYY)" },
   { key: "establishmentName", label: "اسم المنشأة" },
   { key: "establishmentNumber", label: "رقم المنشأة" },
   { key: "establishmentType", label: "نوع المنشأة" },
@@ -65,7 +65,7 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "profession", label: "المهنة" },
   { key: "professionCode", label: "كود المهنة" },
   { key: "sector", label: "القطاع" },
-  { key: "birthDate", label: "تاريخ الميلاد" },
+  { key: "birthDate", label: "تاريخ الميلاد (DD/MM/YYYY)" },
   { key: "gender", label: "النوع" },
   { key: "category", label: "الفئة" },
   { key: "medicalExam", label: "استيفاء الكشف الطبي الابتدائي" },
@@ -74,7 +74,7 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "basicWage", label: "أجر / دخل الاشتراك" },
   { key: "variableWage", label: "الأجر المتغير" },
   { key: "totalWage", label: "الأجر الشامل" },
-  { key: "increaseDate", label: "تاريخ بداية العجز" },
+  { key: "increaseDate", label: "تاريخ بداية العجز (DD/MM/YYYY)" },
   { key: "increasePercent", label: "نسبة العجز" },
   { key: "country", label: "الجنسية" },
   { key: "city", label: "المدينة" },
@@ -87,13 +87,13 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "email", label: "البريد الإلكتروني" },
   { key: "employer", label: "جهة العمل" },
   { key: "manager", label: "المدير المسؤول" },
-  { key: "releaseDate", label: "تحريرًا في" },
+  { key: "releaseDate", label: "تحريرًا في (DD/MM/YYYY)" },
   { key: "applicantName", label: "مقدم الطلب" },
   { key: "applicantRole", label: "صفة مقدم الطلب" },
   { key: "applicantInsuranceNumber", label: "الرقم التأميني لمقدم الطلب" },
   { key: "applicantPhone", label: "رقم تليفون مقدم الطلب" },
   { key: "applicantNationalId", label: "الرقم القومي لمقدم الطلب" },
-  { key: "endDate", label: "تاريخ انتهاء الاشتراك" },
+  { key: "endDate", label: "تاريخ انتهاء الاشتراك (DD/MM/YYYY)" },
   { key: "endReason", label: "سبب انتهاء الاشتراك" },
   { key: "address", label: "العنوان" },
 ];
@@ -167,7 +167,7 @@ const digitsOnlyFields: Array<keyof PersonRecord> = [
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
 ];
-const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "releaseDate", "endDate"];
+const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate"];
 const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage"];
 
 export function normalizeDigits(value: unknown) {
@@ -253,8 +253,8 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   profession: ["المهنة", "المهنه", "الوظيفة", "profession", "job"],
   professionCode: ["كود المهنة", "كود المهنه", "professioncode", "jobcode"],
   sector: ["القطاع", "قطاع", "sector"],
-  startDate: ["تاريخ بدء الاشتراك", "تاريخ بدء الاشتراك التأميني", "startdate", "subscriptionstartdate"],
-  birthDate: ["تاريخ الميلاد", "birthdate", "dateofbirth"],
+  startDate: ["تاريخ بداية الاشتراك", "تاريخ بداية الاشتراك (DD/MM/YYYY)", "تاريخ بداية الاشتراك (YYYY-MM-DD)", "تاريخ بدء الاشتراك", "تاريخ بدء الاشتراك التأميني", "startdate", "subscriptionstartdate"],
+  birthDate: ["تاريخ الميلاد", "تاريخ الميلاد (DD/MM/YYYY)", "birthdate", "dateofbirth"],
   gender: ["النوع", "الجنس", "gender", "sex"],
   category: ["الفئة", "الفئه", "category"],
   medicalExam: ["استيفاء الكشف الطبي الابتدائي", "الكشف الطبي", "medicalexam"],
@@ -263,7 +263,7 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   basicWage: ["أجر / دخل الاشتراك", "أجر الاشتراك", "دخل الاشتراك", "الأجر الأساسي", "الاجر الاساسي", "basicwage"],
   variableWage: ["الأجر المتغير", "الاجر المتغير", "variablewage"],
   totalWage: ["الأجر الشامل", "الاجر الشامل", "totalwage", "wage"],
-  increaseDate: ["تاريخ بداية العجز", "تاريخ الزيادة", "increasedate"],
+  increaseDate: ["تاريخ بداية العجز", "تاريخ بداية العجز (DD/MM/YYYY)", "تاريخ الزيادة", "increasedate"],
   increasePercent: ["نسبة العجز", "نسبة الزيادة", "increasepercent"],
   country: ["الجنسية", "الجنسيه", "الدولة", "الدوله", "nationality", "country"],
   city: ["المدينة", "المدينه", "city"],
@@ -276,13 +276,13 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   email: ["البريد الإلكتروني", "البريد الالكتروني", "email"],
   employer: ["جهة العمل", "جهة العمل / المنشأة", "employer"],
   manager: ["المدير المسؤول", "المدير المسئول", "manager"],
-  releaseDate: ["تحريرًا في", "تحريرا في", "تاريخ التحرير", "releasedate"],
+  releaseDate: ["تحريرًا في", "تحريرًا في (DD/MM/YYYY)", "تحريرا في", "تاريخ التحرير", "releasedate"],
   applicantName: ["مقدم الطلب", "اسم مقدم الطلب", "applicantname"],
   applicantRole: ["صفة مقدم الطلب", "صفة مقدم الطلب", "applicantrole"],
   applicantInsuranceNumber: ["الرقم التأميني لمقدم الطلب", "رقم تأميني مقدم الطلب", "applicantinsurancenumber"],
   applicantPhone: ["رقم تليفون مقدم الطلب", "تليفون مقدم الطلب", "applicantphone"],
   applicantNationalId: ["الرقم القومي لمقدم الطلب", "رقم قومي مقدم الطلب", "applicantnationalid"],
-  endDate: ["تاريخ انتهاء الاشتراك", "تاريخ الانتهاء", "enddate", "subscriptionenddate"],
+  endDate: ["تاريخ انتهاء الاشتراك", "تاريخ انتهاء الاشتراك (DD/MM/YYYY)", "تاريخ الانتهاء", "enddate", "subscriptionenddate"],
   endReason: ["سبب انتهاء الاشتراك", "سبب الانتهاء", "endreason", "subscriptionendreason"],
   address: ["العنوان", "عنوان مقدم الطلب", "address"],
 };
@@ -301,6 +301,13 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
       result[key] = `${year}-${month}-${day}`;
     } else {
       result[key] = normalizeText(rawValue);
+      if (dateFields.includes(key)) {
+        const dateMatch = normalizeDigits(result[key]).match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+        if (dateMatch) {
+          const [, day, month, year] = dateMatch;
+          result[key] = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+        }
+      }
       // Excel often stores Egyptian phone numbers as numeric cells and drops
       // the leading zero. Restore it while importing the fixed 11-digit fields.
       if ((key === "phone" || key === "applicantPhone") && /^\d{1,10}$/.test(normalizeDigits(result[key]))) {
