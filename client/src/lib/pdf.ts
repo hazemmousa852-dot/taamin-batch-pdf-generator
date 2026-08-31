@@ -7,7 +7,11 @@ import { normalizeDigits, normalizeText, type PersonRecord, type TemplateId } fr
 const configuredBase = import.meta.env?.BASE_URL ?? "/";
 const ASSET_BASE = configuredBase.endsWith("/") ? configuredBase : `${configuredBase}/`;
 const assetUrl = (name: string) => `${ASSET_BASE}assets/${name}`;
-export const TEMPLATE_URLS: Record<TemplateId, string> = { s1: assetUrl("taamin-template.pdf"), s6: assetUrl("taamin-s6-template.pdf") };
+export const TEMPLATE_URLS: Record<TemplateId, string> = {
+  s1: assetUrl("taamin-template.pdf"),
+  s2: assetUrl("taamin-s2-template.pdf"),
+  s6: assetUrl("taamin-s6-template.pdf"),
+};
 const ARABIC_FONT_URL = assetUrl("NotoNaskhArabic-Regular.ttf");
 const ArabicShaper = (reshaperPackage as unknown as { ArabicShaper?: { convertArabic: (value: string) => string } }).ArabicShaper;
 
@@ -90,6 +94,106 @@ export function toPdfText(rawValue: string) {
   return visualOrder.replace(/[\ue000-\uf8ff]/g, (marker) => protectedTokens[marker.charCodeAt(0) - 0xe000] ?? marker);
 }
 function cleanDigits(value: string) { return normalizeDigits(value).replace(/\D/g, ""); }
+function formatDisplayDate(value: string) {
+  const match = normalizeDigits(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : normalizeText(value);
+}
+
+type S2Overlay = { x: number; y: number; width: number; height: number; value: string; boxCount?: number; fontSize?: number };
+async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontBytes: ArrayBuffer) {
+  if (typeof document === "undefined" || typeof FontFace === "undefined") return;
+  const face = new FontFace("TaaminS2Arabic", fontBytes.slice(0));
+  await face.load();
+  document.fonts.add(face);
+  const page = pdfDoc.getPages()[0];
+  const scale = 4;
+  for (const overlay of overlays) {
+    if (!normalizeText(overlay.value)) continue;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.ceil(overlay.width * scale));
+    canvas.height = Math.max(1, Math.ceil(overlay.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("تعذر تجهيز رسم نموذج س2");
+    const value = toArabicNumerals(normalizeText(overlay.value));
+    context.fillStyle = "#000";
+    context.textBaseline = "middle";
+    context.textAlign = "center";
+    if (overlay.boxCount) {
+      const digits = Array.from(value).slice(-overlay.boxCount);
+      const cellWidth = canvas.width / overlay.boxCount;
+      const firstCell = overlay.boxCount - digits.length;
+      const size = Math.min(overlay.height * 0.88, (overlay.width / overlay.boxCount) * 0.82);
+      context.direction = "ltr";
+      context.font = `700 ${Math.max(8, size) * scale}px TaaminS2Arabic`;
+      digits.forEach((digit, index) => context.fillText(digit, (firstCell + index + 0.5) * cellWidth, canvas.height * 0.52, cellWidth * 0.88));
+    } else {
+      context.direction = /[\u0600-\u06ff]/.test(value) ? "rtl" : "ltr";
+      let size = overlay.fontSize ?? Math.min(12, overlay.height * 0.82);
+      context.font = `${size * scale}px TaaminS2Arabic`;
+      const maxWidth = Math.max(8, (overlay.width - 3) * scale);
+      while (size > 6.5 && context.measureText(value).width > maxWidth) {
+        size -= 0.5;
+        context.font = `${size * scale}px TaaminS2Arabic`;
+      }
+      context.fillText(value, canvas.width / 2, canvas.height * 0.52, maxWidth);
+    }
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((item) => item ? resolve(item) : reject(new Error("تعذر رسم بيانات س2")), "image/png"));
+    const png = await pdfDoc.embedPng(await blob.arrayBuffer());
+    page.drawImage(png, { x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height });
+  }
+}
+
+async function fillS2Page(records: PersonRecord[]) {
+  const [templateBytes, fontBytes] = await Promise.all([fetchAsset(TEMPLATE_URLS.s2, "قالب نموذج س2"), fetchAsset(ARABIC_FONT_URL, "الخط العربي")]);
+  const pdfDoc = await PDFDocument.load(templateBytes.slice(0));
+  const shared = records[0] ?? ({} as PersonRecord);
+  const overlays: S2Overlay[] = [
+    { x: 574, y: 544, width: 128, height: 13, value: shared.office },
+    { x: 58, y: 540, width: 139, height: 15, value: shared.establishmentNumber, boxCount: 8 },
+    { x: 220, y: 510, width: 82, height: 14, value: formatDisplayDate(shared.noticeDate) },
+    { x: 572, y: 459, width: 130, height: 14, value: shared.applicantName },
+    { x: 322, y: 459, width: 124, height: 14, value: shared.applicantRole },
+    { x: 430, y: 440, width: 258, height: 14, value: shared.applicantNationalId, boxCount: 14 },
+    { x: 49, y: 459, width: 167, height: 14, value: shared.applicantInsuranceNumber, boxCount: 9 },
+    { x: 72, y: 438, width: 150, height: 13, value: shared.applicantPhone },
+    { x: 72, y: 420, width: 150, height: 13, value: shared.taxRegistrationNumber },
+    { x: 572, y: 420, width: 130, height: 13, value: shared.establishmentName },
+    { x: 338, y: 420, width: 124, height: 13, value: shared.sector },
+    { x: 572, y: 397, width: 112, height: 13, value: shared.commercialRegistrationNumber },
+    { x: 281, y: 397, width: 120, height: 13, value: shared.unifiedCommercialRegistrationNumber },
+    { x: 500, y: 112, width: 190, height: 15, value: shared.manager },
+    { x: 270, y: 112, width: 180, height: 15, value: shared.declarationRole },
+    { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDate(shared.releaseDate) },
+  ];
+  const rowY = 326;
+  const rowHeight = 16;
+  records.slice(0, 11).forEach((record, index) => {
+    const y = rowY - (index * rowHeight);
+    const date = formatDisplayDate(record.startDate).split("/");
+    overlays.push(
+      { x: 610, y, width: 165, height: 14, value: record.insuranceNumber, boxCount: 9 },
+      { x: 479, y, width: 131, height: 14, value: record.insuredName, fontSize: 10.5 },
+      { x: 297, y, width: 182, height: 14, value: record.nationalId, boxCount: 14 },
+      { x: 264, y, width: 33, height: 14, value: date[0] ?? "", boxCount: 2 },
+      { x: 225, y, width: 39, height: 14, value: date[1] ?? "", boxCount: 2 },
+      { x: 180, y, width: 45, height: 14, value: date[2] ?? "", boxCount: 4 },
+      { x: 100, y, width: 79, height: 14, value: record.basicWage, fontSize: 10.5 },
+      { x: 28, y, width: 72, height: 14, value: record.totalWage, fontSize: 10.5 },
+    );
+  });
+  await paintS2Overlays(pdfDoc, overlays, fontBytes);
+  return pdfDoc.save({ useObjectStreams: false });
+}
+
+function sortS2Records(records: PersonRecord[]) {
+  return [...records].sort((left, right) => {
+    const a = cleanDigits(left.insuranceNumber);
+    const b = cleanDigits(right.insuranceNumber);
+    if (!a) return b ? 1 : 0;
+    if (!b) return -1;
+    return a.length - b.length || a.localeCompare(b, "en");
+  });
+}
 function getTextField(form: ReturnType<PDFDocument["getForm"]>, name: string) {
   try { return form.getTextField(name); } catch { throw new Error(`حقل PDF غير موجود: ${name}`); }
 }
@@ -252,6 +356,7 @@ async function bakeFormText(
 }
 
 export async function fillPdf(record: PersonRecord, template: TemplateId = "s1") {
+  if (template === "s2") return fillS2Page([record]);
   const [templateBytes, fontBytes] = await Promise.all([fetchAsset(TEMPLATE_URLS[template], "قالب النموذج"), fetchAsset(ARABIC_FONT_URL, "الخط العربي")]);
   const pdfDoc = await PDFDocument.load(templateBytes.slice(0));
   pdfDoc.registerFontkit(fontkit);
@@ -291,7 +396,8 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
 export function safeFileName(record: PersonRecord, index = 1, template: TemplateId = "s1") {
   const person = (record.insuredName || "سجل").replace(/[^\u0600-\u06ff\w\s-]/g, "").trim().replace(/\s+/g, "-");
   const identity = cleanDigits(record.insuranceNumber || record.nationalId).slice(-10) || String(index).padStart(3, "0");
-  return `${template === "s6" ? "س6" : "س1"}-${person || "سجل"}-${identity}-${String(index).padStart(3, "0")}.pdf`;
+  const prefix = template === "s6" ? "س6" : template === "s2" ? "س2" : "س1";
+  return `${prefix}-${person || "سجل"}-${identity}-${String(index).padStart(3, "0")}.pdf`;
 }
 export function downloadBlob(data: BlobPart, fileName: string, type = "application/octet-stream") {
   const blob = new Blob([data], { type }); const href = URL.createObjectURL(blob); const anchor = document.createElement("a");
@@ -300,6 +406,15 @@ export function downloadBlob(data: BlobPart, fileName: string, type = "applicati
 }
 export async function createZip(records: PersonRecord[], template: TemplateId = "s1", onProgress?: (done: number, total: number) => void) {
   const zip = new JSZip();
+  if (template === "s2") {
+    const sorted = sortS2Records(records);
+    const pageCount = Math.ceil(sorted.length / 11);
+    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+      zip.file(`س2-صفحة-${String(pageIndex + 1).padStart(3, "0")}.pdf`, await fillS2Page(sorted.slice(pageIndex * 11, (pageIndex + 1) * 11)));
+      onProgress?.(Math.min((pageIndex + 1) * 11, sorted.length), sorted.length);
+    }
+    return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+  }
   for (let index = 0; index < records.length; index += 1) {
     zip.file(safeFileName(records[index], index + 1, template), await fillPdf(records[index], template));
     onProgress?.(index + 1, records.length);
@@ -309,6 +424,16 @@ export async function createZip(records: PersonRecord[], template: TemplateId = 
 
 export async function createMergedPdf(records: PersonRecord[], template: TemplateId = "s1", onProgress?: (done: number, total: number) => void) {
   const merged = await PDFDocument.create();
+  if (template === "s2") {
+    const sorted = sortS2Records(records);
+    for (let index = 0; index < sorted.length; index += 11) {
+      const source = await PDFDocument.load(await fillS2Page(sorted.slice(index, index + 11)));
+      const [page] = await merged.copyPages(source, [0]);
+      merged.addPage(page);
+      onProgress?.(Math.min(index + 11, sorted.length), sorted.length);
+    }
+    return merged.save({ useObjectStreams: false });
+  }
   for (let index = 0; index < records.length; index += 1) {
     const source = await PDFDocument.load(await fillPdf(records[index], template));
     const pages = await merged.copyPages(source, source.getPageIndices());
