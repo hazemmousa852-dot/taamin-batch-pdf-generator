@@ -313,11 +313,6 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
       if ((key === "phone" || key === "applicantPhone") && /^\d{1,10}$/.test(normalizeDigits(result[key]))) {
         result[key] = normalizeDigits(result[key]).padStart(11, "0");
       }
-      // Insurance identifiers occupy ten printed boxes. Excel commonly drops
-      // their leading zero when a cell is stored as a number, so restore it.
-      if ((key === "insuranceNumber" || key === "applicantInsuranceNumber") && /^\d{1,10}$/.test(normalizeDigits(result[key]))) {
-        result[key] = normalizeDigits(result[key]).padStart(10, "0");
-      }
     }
   });
   return result;
