@@ -240,11 +240,14 @@ function statusClass(status: ReturnType<typeof recordStatus>) {
 }
 
 export default function Home() {
-  const [records, setRecords] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
-  const [activeId, setActiveId] = useState(() => records[0].id);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(records.map((record) => record.id)));
-  const [mode, setMode] = useState<Mode>("manual");
   const [template, setTemplate] = useState<TemplateId>("s1");
+  const [sharedRecords, setSharedRecords] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
+  const [s2Records, setS2Records] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
+  const records = template === "s2" ? s2Records : sharedRecords;
+  const setRecords = template === "s2" ? setS2Records : setSharedRecords;
+  const [activeId, setActiveId] = useState(() => sharedRecords[0].id);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(sharedRecords.map((record) => record.id)));
+  const [mode, setMode] = useState<Mode>("manual");
   const [activeGroup, setActiveGroup] = useState("identity");
   const [search, setSearch] = useState("");
   const [fileName, setFileName] = useState("");
@@ -300,7 +303,11 @@ export default function Home() {
     );
   }, [records, search]);
   function changeTemplate(next: TemplateId) {
+    const targetRecords = next === "s2" ? s2Records : sharedRecords;
     setTemplate(next);
+    setActiveId(targetRecords[0].id);
+    setSelectedIds(new Set(targetRecords.map((record) => record.id)));
+    setFileName("");
     setActiveGroup("identity");
     toast.success(`تم اختيار ${TEMPLATE_LABELS[next]}`, { description: "سيُستخدم هذا القالب عند المعاينة والتصدير." });
   }
