@@ -99,7 +99,10 @@ function formatDisplayDate(value: string) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : normalizeText(value);
 }
 
-type S2Overlay = { x: number; y: number; width: number; height: number; value: string; boxCount?: number; fontSize?: number };
+type S2Overlay = {
+  x: number; y: number; width: number; height: number; value: string;
+  boxCount?: number; fontSize?: number; direction?: "rtl" | "ltr"; baseline?: number;
+};
 async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontBytes: ArrayBuffer) {
   if (typeof document === "undefined" || typeof FontFace === "undefined") return;
   const face = new FontFace("TaaminS2Arabic", fontBytes.slice(0));
@@ -125,9 +128,9 @@ async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontB
       const size = Math.min(overlay.height * 0.88, (overlay.width / overlay.boxCount) * 0.82);
       context.direction = "ltr";
       context.font = `700 ${Math.max(8, size) * scale}px TaaminS2Arabic`;
-      digits.forEach((digit, index) => context.fillText(digit, (firstCell + index + 0.5) * cellWidth, canvas.height * 0.52, cellWidth * 0.88));
+      digits.forEach((digit, index) => context.fillText(digit, (firstCell + index + 0.5) * cellWidth, canvas.height * (overlay.baseline ?? 0.49), cellWidth * 0.88));
     } else {
-      context.direction = /[\u0600-\u06ff]/.test(value) ? "rtl" : "ltr";
+      context.direction = overlay.direction ?? (/[\u0600-\u06ff]/.test(value) ? "rtl" : "ltr");
       let size = overlay.fontSize ?? Math.min(12, overlay.height * 0.82);
       context.font = `${size * scale}px TaaminS2Arabic`;
       const maxWidth = Math.max(8, (overlay.width - 3) * scale);
@@ -135,7 +138,7 @@ async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontB
         size -= 0.5;
         context.font = `${size * scale}px TaaminS2Arabic`;
       }
-      context.fillText(value, canvas.width / 2, canvas.height * 0.52, maxWidth);
+      context.fillText(value, canvas.width / 2, canvas.height * (overlay.baseline ?? 0.49), maxWidth);
     }
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((item) => item ? resolve(item) : reject(new Error("تعذر رسم بيانات س2")), "image/png"));
     const png = await pdfDoc.embedPng(await blob.arrayBuffer());
@@ -150,7 +153,7 @@ async function fillS2Page(records: PersonRecord[]) {
   const overlays: S2Overlay[] = [
     { x: 574, y: 544, width: 128, height: 13, value: shared.office },
     { x: 58, y: 540, width: 139, height: 15, value: shared.establishmentNumber, boxCount: 8 },
-    { x: 220, y: 510, width: 82, height: 14, value: formatDisplayDate(shared.noticeDate) },
+    { x: 220, y: 510, width: 82, height: 14, value: formatDisplayDate(shared.noticeDate), direction: "ltr", baseline: 0.48 },
     { x: 572, y: 459, width: 130, height: 14, value: shared.applicantName },
     { x: 322, y: 459, width: 124, height: 14, value: shared.applicantRole },
     { x: 430, y: 440, width: 258, height: 14, value: shared.applicantNationalId, boxCount: 14 },
@@ -161,9 +164,9 @@ async function fillS2Page(records: PersonRecord[]) {
     { x: 338, y: 420, width: 124, height: 13, value: shared.sector },
     { x: 572, y: 397, width: 112, height: 13, value: shared.commercialRegistrationNumber },
     { x: 281, y: 397, width: 120, height: 13, value: shared.unifiedCommercialRegistrationNumber },
-    { x: 500, y: 112, width: 190, height: 15, value: shared.manager },
-    { x: 270, y: 112, width: 180, height: 15, value: shared.declarationRole },
-    { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDate(shared.releaseDate) },
+    { x: 500, y: 116, width: 190, height: 14, value: shared.manager, fontSize: 11, baseline: 0.45 },
+    { x: 270, y: 116, width: 180, height: 14, value: shared.declarationRole, fontSize: 11, baseline: 0.45 },
+    { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDate(shared.releaseDate), direction: "ltr", baseline: 0.48 },
   ];
   const rowY = 326;
   const rowHeight = 16;
@@ -171,14 +174,14 @@ async function fillS2Page(records: PersonRecord[]) {
     const y = rowY - (index * rowHeight);
     const date = formatDisplayDate(record.startDate).split("/");
     overlays.push(
-      { x: 610, y, width: 165, height: 14, value: record.insuranceNumber, boxCount: 9 },
-      { x: 479, y, width: 131, height: 14, value: record.insuredName, fontSize: 10.5 },
-      { x: 297, y, width: 182, height: 14, value: record.nationalId, boxCount: 14 },
-      { x: 264, y, width: 33, height: 14, value: date[0] ?? "", boxCount: 2 },
-      { x: 225, y, width: 39, height: 14, value: date[1] ?? "", boxCount: 2 },
-      { x: 180, y, width: 45, height: 14, value: date[2] ?? "", boxCount: 4 },
-      { x: 100, y, width: 79, height: 14, value: record.basicWage, fontSize: 10.5 },
-      { x: 28, y, width: 72, height: 14, value: record.totalWage, fontSize: 10.5 },
+      { x: 610, y, width: 165, height: 14, value: record.insuranceNumber, boxCount: 9, baseline: 0.48 },
+      { x: 479, y, width: 131, height: 14, value: record.insuredName, fontSize: 10.5, baseline: 0.47 },
+      { x: 297, y, width: 182, height: 14, value: record.nationalId, boxCount: 14, baseline: 0.48 },
+      { x: 264, y, width: 33, height: 14, value: date[0] ?? "", boxCount: 2, baseline: 0.48 },
+      { x: 225, y, width: 39, height: 14, value: date[1] ?? "", boxCount: 2, baseline: 0.48 },
+      { x: 180, y, width: 45, height: 14, value: date[2] ?? "", boxCount: 4, baseline: 0.48 },
+      { x: 100, y, width: 79, height: 14, value: record.basicWage, fontSize: 10.5, baseline: 0.47 },
+      { x: 28, y, width: 72, height: 14, value: record.totalWage, fontSize: 10.5, baseline: 0.47 },
     );
   });
   await paintS2Overlays(pdfDoc, overlays, fontBytes);
