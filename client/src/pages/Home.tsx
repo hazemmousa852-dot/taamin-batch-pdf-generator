@@ -250,6 +250,7 @@ export default function Home() {
   const [mode, setMode] = useState<Mode>("manual");
   const [activeGroup, setActiveGroup] = useState("identity");
   const [search, setSearch] = useState("");
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [fileName, setFileName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -292,22 +293,25 @@ export default function Home() {
   const availableGroups = useMemo(() => fieldGroups
     .map((group) => ({ ...group, fields: group.fields.filter((field) => TEMPLATE_FIELDS[template].has(field.key)) }))
     .filter((group) => group.fields.length > 0), [template]);
+  const incompleteRecords = useMemo(() => records.filter((record) => validateRecord(record, template).length > 0), [records, template]);
   const visibleRecords = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("ar-EG");
-    if (!query) return records;
-    return records.filter((record) =>
+    const scoped = template === "s2" && showIncompleteOnly ? incompleteRecords : records;
+    if (!query) return scoped;
+    return scoped.filter((record) =>
       [record.insuredName, record.nationalId, record.establishmentName]
         .join(" ")
         .toLocaleLowerCase("ar-EG")
         .includes(query),
     );
-  }, [records, search]);
+  }, [records, search, template, showIncompleteOnly, incompleteRecords]);
   function changeTemplate(next: TemplateId) {
     const targetRecords = next === "s2" ? s2Records : sharedRecords;
     setTemplate(next);
     setActiveId(targetRecords[0].id);
     setSelectedIds(new Set(targetRecords.map((record) => record.id)));
     setFileName("");
+    setShowIncompleteOnly(false);
     setActiveGroup("identity");
     toast.success(`تم اختيار ${TEMPLATE_LABELS[next]}`, { description: "سيُستخدم هذا القالب عند المعاينة والتصدير." });
   }
@@ -367,7 +371,9 @@ export default function Home() {
       }
       setRecords(imported);
       setSelectedIds(new Set(imported.map((record) => record.id)));
-      setActiveId(imported[0].id);
+      const firstIncomplete = imported.find((record) => validateRecord(record, template).length > 0);
+      setActiveId((template === "s2" && firstIncomplete ? firstIncomplete : imported[0]).id);
+      setShowIncompleteOnly(template === "s2" && Boolean(firstIncomplete));
       setMode("bulk");
       const invalidCount = imported.filter((record) => validateRecord(record, template).length > 0).length;
       toast.success(`تم استيراد ${imported.length} سجل`, { description: invalidCount ? `${invalidCount} سجل يحتاج مراجعة قبل التصدير.` : "كل السجلات جاهزة للتصدير." });
@@ -534,9 +540,9 @@ export default function Home() {
               <div className="intro-actions">
                 <Button className="button-primary" onClick={downloadAll} disabled={isProcessing}>
                   {isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />}
-                  تنزيل PDF مجمّع
+                  {template === "s2" ? "تنزيل ملف س2 المجمّع" : "تنزيل PDF مجمّع"}
                 </Button>
-                <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>
+                {template !== "s2" && <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>}
                 <Button variant="outline" className="button-outline" onClick={downloadTemplate}><Download size={16} /> قالب Excel</Button>
               </div>
             </div>
@@ -586,7 +592,7 @@ export default function Home() {
 
             <div className="records-toolbar">
               <div className="records-title"><UsersRound size={17} /><strong>سجل البيانات</strong><span>{records.length} صف</span></div>
-              <div className="records-actions"><div className="search-wrap"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الرقم..." /></div><Button variant="outline" className="add-button" onClick={addRecord}><Plus size={15} /> إضافة سجل</Button></div>
+              <div className="records-actions"><div className="search-wrap"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الرقم..." /></div>{template === "s2" && <Button variant="outline" className="add-button" onClick={() => { const next = !showIncompleteOnly; setShowIncompleteOnly(next); if (next && incompleteRecords[0]) setActiveId(incompleteRecords[0].id); }}><ClipboardList size={15} /> {showIncompleteOnly ? "عرض كل الموظفين" : `بيانات ناقصة (${incompleteRecords.length})`}</Button>}<Button variant="outline" className="add-button" onClick={addRecord}><Plus size={15} /> إضافة سجل</Button></div>
             </div>
 
             <div className="records-table-wrap registry-table">
@@ -624,19 +630,19 @@ export default function Home() {
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
                     <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
                     <div className="fields-grid">
-                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const maxLength = field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : field.key === "phone" || field.key === "applicantPhone" ? 11 : undefined; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={maxLength} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && activeRecord[field.key] && <span className="field-error">{issue}</span>}</div>; })}
+                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const maxLength = field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : field.key === "phone" || field.key === "applicantPhone" ? 11 : undefined; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={maxLength} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && <span className="field-error">{issue}</span>}</div>; })}
                     </div>
                   </div>;
                 })}
               </div>
-              <div className="editor-footer"><span><ShieldCheck size={15} /> المعالجة محلية وآمنة</span><div><Button variant="outline" className="button-outline" onClick={() => setRecords((current) => current.map((record) => record.id === activeId ? { ...makeEmptyRecord(), id: record.id } : record))}>مسح الحقول</Button><Button className="button-primary" onClick={downloadSelected} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <ArrowDownToLine size={16} />} تنزيل PDF</Button></div></div>
+              <div className="editor-footer"><span><ShieldCheck size={15} /> التعديلات تُحفظ تلقائيًا في هذه الجلسة</span><div><Button variant="outline" className="button-outline" onClick={() => setRecords((current) => current.map((record) => record.id === activeId ? { ...makeEmptyRecord(), id: record.id } : record))}>مسح الحقول</Button>{template !== "s2" && <Button className="button-primary" onClick={downloadSelected} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <ArrowDownToLine size={16} />} تنزيل PDF</Button>}</div></div>
             </div>
 
             <aside className="preview-panel">
               <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / {template === "s2" ? "1" : "2"}</span></div>
               <div className="preview-frame"><div className="preview-paper preview-pdf-paper">{previewImage ? <img className="preview-rendered-image" src={previewImage} alt={`معاينة ${TEMPLATE_LABELS[template]} بالبيانات الحالية`} /> : <div className="preview-loading">{previewState === "error" ? "تعذر إنشاء المعاينة" : "جاري تجهيز النموذج..."}</div>}</div><div className="preview-control"><button aria-label="تصغير المعاينة"><ChevronDown size={14} /></button><span>100%</span><button aria-label="تكبير المعاينة"><Plus size={14} /></button></div></div>
               <div className="preview-note"><div className="note-seal small"><Check size={14} /></div><div><strong>معاينة القالب الأصلي</strong><p>تُعرض الصفحة الأولى من PDF الفعلي بالبيانات الحالية، ويمكن تنزيل الملف كاملًا من الزر أدناه.</p></div></div>
-              <Button className="full-preview-button" variant="outline" onClick={downloadSelected}><Printer size={15} /> معاينة / تنزيل الصفحة</Button>
+              {template !== "s2" && <Button className="full-preview-button" variant="outline" onClick={downloadSelected}><Printer size={15} /> معاينة / تنزيل الصفحة</Button>}
             </aside>
           </section>
 
