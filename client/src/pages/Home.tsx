@@ -562,13 +562,16 @@ export default function Home() {
               <h1>من جدول واحد<br /><em>إلى نماذج جاهزة.</em></h1>
               <p className="intro-description">اكتب بيانات شخص واحد أو ارفع ملف Excel كاملًا. راجع كل سجل، ثم احصل على ملفات PDF مرتبة وجاهزة للطباعة.</p>
               <div className="intro-actions">
-                <Button className="button-primary" onClick={downloadAll} disabled={isProcessing}>
-                  {isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />}
-                  {template === "s2" ? "تنزيل ملف س2 المجمّع" : "تنزيل PDF مجمّع"}
-                </Button>
-                {template === "s2" && <Button variant="outline" className="button-outline" onClick={downloadS2Crm} disabled={isProcessing}><FileSpreadsheet size={16} /> تجهيز س2 لمنظومة CRM</Button>}
-                {template !== "s2" && <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>}
-                <Button variant="outline" className="button-outline" onClick={downloadTemplate}><Download size={16} /> قالب Excel</Button>
+                {template === "s2" ? <>
+                  <Button variant="outline" className="button-outline workflow-action" onClick={downloadTemplate}><span className="workflow-action-number">1</span><Download size={16} /> تنزيل قالب Excel</Button>
+                  <Button variant="outline" className="button-outline workflow-action" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}><span className="workflow-action-number">2</span><CloudUpload size={16} /> رفع ملف Excel</Button>
+                  <Button className="button-primary workflow-action" onClick={downloadAll} disabled={isProcessing}><span className="workflow-action-number">3</span>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل ملف س2 PDF مجمّع</Button>
+                  <Button variant="outline" className="button-outline workflow-action" onClick={downloadS2Crm} disabled={isProcessing}><span className="workflow-action-number">4</span><FileSpreadsheet size={16} /> تجهيز س2 لمنظومة CRM</Button>
+                </> : <>
+                  <Button className="button-primary" onClick={downloadAll} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل PDF مجمّع</Button>
+                  <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>
+                  <Button variant="outline" className="button-outline" onClick={downloadTemplate}><Download size={16} /> قالب Excel</Button>
+                </>}
               </div>
             </div>
             <div className="intro-visual">
@@ -591,18 +594,18 @@ export default function Home() {
 
           <section className="workbench-section registry-section">
             <div className="section-heading-row">
-              <div><p className="section-overline">مسار العمل <span>01 / 03</span></p><h2>أدخل البيانات</h2></div>
+              <div><p className="section-overline">مسار العمل <span>{template === "s2" ? "01 / 04" : "01 / 03"}</span></p><h2>{template === "s2" ? "ارفع بيانات س2" : "أدخل البيانات"}</h2></div>
               <div className="heading-tools"><span className="template-pill"><FileText size={14} /> {TEMPLATE_LABELS[template]} <ChevronDown size={14} /></span><span className="autosave"><span /> حفظ تلقائي</span></div>
             </div>
 
-            <Card className="mode-card registry-card">
+            {template !== "s2" && <Card className="mode-card registry-card">
               <div className="mode-copy"><div className="mode-icon"><ClipboardList size={18} /></div><div><h3>كيف تريد البدء؟</h3><p>اختر إدخال سجل يدويًا أو حمّل دفعة من Excel.</p></div></div>
               <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)} className="mode-tabs">
                 <TabsList><TabsTrigger value="manual"><UserRound size={15} /> سجل يدوي</TabsTrigger><TabsTrigger value="bulk"><UsersRound size={15} /> دفعة Excel</TabsTrigger></TabsList>
               </Tabs>
-            </Card>
+            </Card>}
 
-            {mode === "bulk" ? (
+            {template === "s2" || mode === "bulk" ? (
               <Card className="upload-card registry-card">
                 <div className="upload-art"><img src={RIBBON_URL} alt="" /><div className="upload-art-label"><FileSpreadsheet size={17} /><span>صفوف منظمة<br /><b>إلى ملفات</b></span></div></div>
                 <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>نقرأ بيانات المنشأة والمفوّض مرة واحدة، ثم ننشئ نموذجًا لكل صف في شيت المؤمن عليهم.</p></div><span className="supported-formats">.XLSX / .XLS</span></div>
@@ -641,6 +644,8 @@ export default function Home() {
               </table>
             </div>
           </section>
+
+          {template === "s2" && <div className="manual-stage-banner"><span className="callout-number">5</span><div><strong>الإضافة والتعديل اليدوي في النهاية</strong><p>بعد استيراد Excel راجع السجلات بالأسفل، وعدّل الناقص أو اضغط «إضافة سجل» لإدخال موظف جديد.</p></div><UserRound size={18} /></div>}
 
           <section className="editor-layout">
             <div className="editor-panel">
