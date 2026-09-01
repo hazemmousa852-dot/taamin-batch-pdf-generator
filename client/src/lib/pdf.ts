@@ -110,13 +110,22 @@ type S2Overlay = {
   boxCount?: number; fontSize?: number; direction?: "rtl" | "ltr"; baseline?: number;
   alignment?: "left" | "center" | "right";
 };
+let s2FontReady: Promise<void> | undefined;
+function ensureS2Font(fontBytes: ArrayBuffer) {
+  if (!s2FontReady) {
+    s2FontReady = (async () => {
+      const face = new FontFace("TaaminS2Arabic", fontBytes.slice(0));
+      await face.load();
+      document.fonts.add(face);
+    })();
+  }
+  return s2FontReady;
+}
 async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontBytes: ArrayBuffer) {
   if (typeof document === "undefined" || typeof FontFace === "undefined") return;
-  const face = new FontFace("TaaminS2Arabic", fontBytes.slice(0));
-  await face.load();
-  document.fonts.add(face);
+  await ensureS2Font(fontBytes);
   const page = pdfDoc.getPages()[0];
-  const scale = 4;
+  const scale = 3;
   for (const overlay of overlays) {
     if (!normalizeText(overlay.value)) continue;
     const canvas = document.createElement("canvas");
@@ -448,8 +457,11 @@ export async function createZip(records: PersonRecord[], template: TemplateId = 
   if (template === "s2") {
     const sorted = sortS2Records(records);
     const pageCount = Math.ceil(sorted.length / 11);
+    const pages = await Promise.all(Array.from({ length: pageCount }, (_, pageIndex) =>
+      fillS2Page(sorted.slice(pageIndex * 11, (pageIndex + 1) * 11)),
+    ));
     for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-      zip.file(`س2-صفحة-${String(pageIndex + 1).padStart(3, "0")}.pdf`, await fillS2Page(sorted.slice(pageIndex * 11, (pageIndex + 1) * 11)));
+      zip.file(`س2-صفحة-${String(pageIndex + 1).padStart(3, "0")}.pdf`, pages[pageIndex]);
       onProgress?.(Math.min((pageIndex + 1) * 11, sorted.length), sorted.length);
     }
     return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
@@ -465,11 +477,15 @@ export async function createMergedPdf(records: PersonRecord[], template: Templat
   const merged = await PDFDocument.create();
   if (template === "s2") {
     const sorted = sortS2Records(records);
-    for (let index = 0; index < sorted.length; index += 11) {
-      const source = await PDFDocument.load(await fillS2Page(sorted.slice(index, index + 11)));
+    const chunks = Array.from({ length: Math.ceil(sorted.length / 11) }, (_, pageIndex) =>
+      sorted.slice(pageIndex * 11, (pageIndex + 1) * 11),
+    );
+    const pageBytes = await Promise.all(chunks.map((chunk) => fillS2Page(chunk)));
+    for (let pageIndex = 0; pageIndex < pageBytes.length; pageIndex += 1) {
+      const source = await PDFDocument.load(pageBytes[pageIndex]);
       const [page] = await merged.copyPages(source, [0]);
       merged.addPage(page);
-      onProgress?.(Math.min(index + 11, sorted.length), sorted.length);
+      onProgress?.(Math.min((pageIndex + 1) * 11, sorted.length), sorted.length);
     }
     return merged.save({ useObjectStreams: false });
   }
