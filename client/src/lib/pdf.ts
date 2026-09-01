@@ -11,7 +11,7 @@ export const TEMPLATE_URLS: Record<TemplateId, string> = {
   s1: assetUrl("taamin-template.pdf"),
   // Keep a versioned filename so browsers and GitHub Pages cannot reuse an
   // older official S2 background after the template is replaced.
-  s2: assetUrl("taamin-s2-template-v2.pdf"),
+  s2: assetUrl("taamin-s2-template-v3.pdf"),
   s6: assetUrl("taamin-s6-template.pdf"),
 };
 const ARABIC_FONT_URL = assetUrl("NotoNaskhArabic-Regular.ttf");
@@ -171,8 +171,8 @@ async function fillS2Page(records: PersonRecord[]) {
     { x: 338, y: 420, width: 124, height: 13, value: shared.sector },
     { x: 572, y: 397, width: 112, height: 13, value: shared.commercialRegistrationNumber },
     { x: 281, y: 397, width: 120, height: 13, value: shared.unifiedCommercialRegistrationNumber },
-    { x: 500, y: 116, width: 190, height: 14, value: shared.manager, fontSize: 11, baseline: 0.45 },
-    { x: 270, y: 116, width: 180, height: 14, value: shared.declarationRole, fontSize: 11, baseline: 0.45 },
+    { x: 505, y: 122, width: 190, height: 12, value: shared.manager, fontSize: 10.5, baseline: 0.48 },
+    { x: 345, y: 122, width: 130, height: 12, value: shared.declarationRole, fontSize: 10.5, baseline: 0.48 },
     { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDate(shared.releaseDate), direction: "ltr", alignment: "right", baseline: 0.48 },
   ];
   // The first two horizontal bands are the table header. Employee data starts
@@ -183,14 +183,14 @@ async function fillS2Page(records: PersonRecord[]) {
     const y = rowY - (index * rowHeight);
     const date = formatDisplayDate(record.startDate).split("/");
     overlays.push(
-      { x: 610, y, width: 165, height: 14, value: record.insuranceNumber, boxCount: 9, baseline: 0.48 },
-      { x: 479, y, width: 131, height: 14, value: record.insuredName, fontSize: 10.5, baseline: 0.47 },
-      { x: 297, y, width: 182, height: 14, value: record.nationalId, boxCount: 14, baseline: 0.48 },
-      { x: 264, y, width: 33, height: 14, value: date[0] ?? "", boxCount: 2, baseline: 0.48 },
-      { x: 225, y, width: 39, height: 14, value: date[1] ?? "", boxCount: 2, baseline: 0.48 },
-      { x: 180, y, width: 45, height: 14, value: date[2] ?? "", boxCount: 4, baseline: 0.48 },
-      { x: 100, y, width: 79, height: 14, value: record.basicWage, fontSize: 10.5, baseline: 0.47 },
-      { x: 28, y, width: 72, height: 14, value: record.totalWage, fontSize: 10.5, baseline: 0.47 },
+      { x: 610, y, width: 165, height: 14, value: record.insuranceNumber, boxCount: 9, baseline: 0.5 },
+      { x: 479, y, width: 131, height: 14, value: record.insuredName, fontSize: 10.5, baseline: 0.5 },
+      { x: 297, y, width: 182, height: 14, value: record.nationalId, boxCount: 14, baseline: 0.5 },
+      { x: 264, y, width: 33, height: 14, value: date[0] ?? "", boxCount: 2, baseline: 0.5 },
+      { x: 225, y, width: 39, height: 14, value: date[1] ?? "", boxCount: 2, baseline: 0.5 },
+      { x: 180, y, width: 45, height: 14, value: date[2] ?? "", boxCount: 4, baseline: 0.5 },
+      { x: 100, y, width: 79, height: 14, value: record.basicWage, fontSize: 10.5, baseline: 0.5 },
+      { x: 28, y, width: 72, height: 14, value: record.totalWage, fontSize: 10.5, baseline: 0.5 },
     );
   });
   await paintS2Overlays(pdfDoc, overlays, fontBytes);
