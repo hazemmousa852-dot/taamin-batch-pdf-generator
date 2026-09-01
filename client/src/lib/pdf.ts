@@ -164,7 +164,7 @@ async function fillS2Page(records: PersonRecord[]) {
   const overlays: S2Overlay[] = [
     { x: 574, y: 544, width: 128, height: 13, value: shared.office },
     { x: 58, y: 540, width: 139, height: 15, value: shared.establishmentNumber, boxCount: 8 },
-    { x: 220, y: 510, width: 82, height: 14, value: formatDisplayDateYmd(shared.noticeDate), direction: "ltr", alignment: "right", baseline: 0.5 },
+    { x: 220, y: 506, width: 82, height: 14, value: formatDisplayDateYmd(shared.noticeDate), direction: "ltr", alignment: "right", baseline: 0.5 },
     { x: 572, y: 459, width: 130, height: 14, value: shared.applicantName },
     { x: 322, y: 459, width: 124, height: 14, value: shared.applicantRole },
     { x: 430, y: 440, width: 258, height: 14, value: shared.applicantNationalId, boxCount: 14 },
@@ -177,7 +177,7 @@ async function fillS2Page(records: PersonRecord[]) {
     { x: 281, y: 397, width: 120, height: 13, value: shared.unifiedCommercialRegistrationNumber },
     { x: 505, y: 122, width: 190, height: 12, value: shared.manager, fontSize: 10.5, baseline: 0.48 },
     { x: 345, y: 122, width: 130, height: 12, value: shared.declarationRole, fontSize: 10.5, baseline: 0.48 },
-    { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDateYmd(shared.releaseDate), direction: "ltr", alignment: "right", baseline: 0.5 },
+    { x: 642, y: 20, width: 82, height: 14, value: formatDisplayDateYmd(shared.releaseDate), direction: "ltr", alignment: "right", baseline: 0.5 },
   ];
   // The first two horizontal bands are the table header. Employee data starts
   // one full row below them in the current official template.
