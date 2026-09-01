@@ -43,12 +43,30 @@ export function sortS2CrmRecords(records: PersonRecord[]) {
   });
 }
 
-export async function createS2CrmWorkbook(records: PersonRecord[], templateUrl: string) {
-  if (records.length > 5_000) throw new Error("الحد الأقصى لملف CRM الواحد هو 5000 موظف");
-  const response = await fetch(templateUrl);
-  if (!response.ok) throw new Error("تعذر تحميل قالب س2 الخاص بمنظومة CRM");
+async function loadOriginalTemplate(partsBaseUrl: string) {
+  const responses = await Promise.all(
+    Array.from({ length: 14 }, (_, index) =>
+      fetch(`${partsBaseUrl}/part-${String(index).padStart(2, "0")}.bin`),
+    ),
+  );
+  if (responses.some((response) => !response.ok)) {
+    throw new Error("تعذر تحميل قالب س2 الأصلي كاملًا");
+  }
 
-  const zip = await JSZip.loadAsync(await response.arrayBuffer());
+  const parts = await Promise.all(responses.map((response) => response.arrayBuffer()));
+  const totalLength = parts.reduce((total, part) => total + part.byteLength, 0);
+  const template = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const part of parts) {
+    template.set(new Uint8Array(part), offset);
+    offset += part.byteLength;
+  }
+  return template;
+}
+
+export async function createS2CrmWorkbook(records: PersonRecord[], partsBaseUrl: string) {
+  if (records.length > 5_000) throw new Error("الحد الأقصى لملف CRM الواحد هو 5000 موظف");
+  const zip = await JSZip.loadAsync(await loadOriginalTemplate(partsBaseUrl));
   const sheetPath = "xl/worksheets/sheet1.xml";
   const sheetFile = zip.file(sheetPath);
   if (!sheetFile) throw new Error("ورقة CRM الأساسية غير موجودة في القالب");
