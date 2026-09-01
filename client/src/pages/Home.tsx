@@ -282,7 +282,7 @@ export default function Home() {
         console.error("PDF preview generation failed", error);
         if (!cancelled) setPreviewState("error");
       }
-    }, 250);
+    }, 450);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [activeRecord, template]);
   const readyCount = records.filter((record) => recordStatus(record, template) === "جاهز").length;
