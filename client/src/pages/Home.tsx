@@ -127,7 +127,7 @@ const fieldGroups: FieldGroup[] = [
       { key: "contributionCode", label: "كود الاشتراك", placeholder: "كود الاشتراك" },
       { key: "workType", label: "نوع المدة", placeholder: "نوع المدة" },
       { key: "medicalExam", label: "الكشف الطبي الابتدائي", placeholder: "نعم / لا" },
-      { key: "taxRegistrationNumber", label: "رقم التسجيل الضريبي", placeholder: "رقم التسجيل الضريبي", type: "number" },
+      { key: "taxRegistrationNumber", label: "رقم التسجيل الضريبي", placeholder: "اكتب الرقم أو النص كما تريد" },
       { key: "commercialRegistrationNumber", label: "رقم السجل التجاري", placeholder: "رقم السجل التجاري", type: "number" },
       { key: "unifiedCommercialRegistrationNumber", label: "رقم السجل التجاري الموحد", placeholder: "رقم السجل التجاري الموحد", type: "number" },
     ],
@@ -211,7 +211,7 @@ const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
 const IDENTIFIER_FIELDS = new Set<EditableKey>([
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
-  "taxRegistrationNumber", "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
+  "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
 ]);
 const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
   "office", "establishmentName", "establishmentNumber", "establishmentType", "address",
@@ -219,11 +219,9 @@ const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
   "noticeDate", "taxRegistrationNumber", "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber", "manager", "declarationRole", "releaseDate",
 ]);
 const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
-  applicantRole: ["صاحب العمل", "المسؤول", "مفوض"],
   category: ["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"],
   medicalExam: ["نعم", "لا"],
   establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
-  sector: ["حكومي", "عام / أعمال عام", "خاص"],
   gender: ["ذكر", "أنثى"],
 };
 function initials(value: string) {
@@ -347,11 +345,15 @@ export default function Home() {
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(peopleSheet, { defval: "" });
       const sharedRow = sharedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sharedSheet, { defval: "" })[0] : undefined;
       const sharedRecord = sharedRow ? mapExcelRow(sharedRow) : undefined;
-      const imported = rows.map((row) => {
+      const imported = rows.flatMap((row) => {
         const record = mapExcelRow(row);
+        const hasPersonData = Array.from(TEMPLATE_FIELDS[template]).some((key) =>
+          !SHARED_EXCEL_FIELDS.has(key) && record[key].trim(),
+        );
+        if (!hasPersonData) return [];
         if (sharedRecord) for (const key of SHARED_EXCEL_FIELDS) if (!record[key] && sharedRecord[key]) record[key] = sharedRecord[key];
-        return record;
-      }).filter((record) => filledCount(record) > 0);
+        return [record];
+      });
       if (!imported.length) {
         toast.error("لم نجد صفوفًا قابلة للاستيراد", { description: "تأكد من أن الصف الأول يحتوي على أسماء الأعمدة." });
         return;
