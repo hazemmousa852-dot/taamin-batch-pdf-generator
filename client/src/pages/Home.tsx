@@ -18,7 +18,6 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
-  FolderOpen,
   Hash,
   LayoutDashboard,
   Loader2,
@@ -27,7 +26,6 @@ import {
   Plus,
   Printer,
   Search,
-  Settings2,
   ShieldCheck,
   Trash2,
   Upload,
@@ -493,14 +491,17 @@ export default function Home() {
           </button>
           <img src={MARK_URL} alt="" className="brand-mark" />
           <div>
-            <p className="brand-name">معبّي</p>
-            <p className="brand-caption">مكتب النماذج الذكي</p>
+            <p className="brand-name">نموذجي</p>
+            <p className="brand-caption">تجهيز نماذج التأمينات</p>
           </div>
+        </div>
+        <div className="topbar-template-tabs" aria-label="اختيار نموذج التأمينات">
+          {(Object.keys(TEMPLATE_LABELS) as TemplateId[]).map((id) => <button key={id} className={template === id ? "topbar-template-tab topbar-template-tab-active" : "topbar-template-tab"} onClick={() => changeTemplate(id)}><FileText size={14} />{TEMPLATE_LABELS[id]}</button>)}
         </div>
         <div className="topbar-actions">
           <div className="connection-state"><span className="state-dot" /> يعمل محليًا على جهازك</div>
           <button className="icon-button" aria-label="المساعدة"><CircleHelp size={18} /></button>
-          <button className="avatar-button" aria-label="الحساب">م</button>
+          <button className="avatar-button" aria-label="حازم موسى">ح</button>
         </div>
       </header>
 
@@ -510,22 +511,19 @@ export default function Home() {
             <div className="sidebar-kicker">مساحة العمل</div>
             <nav className="main-nav" aria-label="التنقل الرئيسي">
               <button className="nav-item nav-item-active"><LayoutDashboard size={17} /> لوحة النماذج <span className="nav-count">{records.length}</span></button>
-              <button className="nav-item"><FolderOpen size={17} /> أرشيف الملفات <span className="nav-soon">قريبًا</span></button>
-              <button className="nav-item"><Settings2 size={17} /> إعدادات القالب <span className="nav-soon">قريبًا</span></button>
             </nav>
             <div className="sidebar-rule" />
-            <div className="sidebar-note">
-              <div className="note-seal"><ShieldCheck size={16} /></div>
-              <div>
-                <p>بياناتك تبقى هنا</p>
-                <span>المعالجة تتم داخل المتصفح ولا نرفع الملفات إلى خادم.</span>
-              </div>
+            <div className="sidebar-guide" aria-label="دليل الاستخدام السريع">
+              <p className="guide-title"><CircleHelp size={15} /> شرح سريع</p>
+              <ol>
+                <li><b>1</b><span>اختر س1 أو س2 أو س6 من أعلى الصفحة.</span></li>
+                <li><b>2</b><span>نزّل قالب Excel واملأ البيانات.</span></li>
+                <li><b>3</b><span>ارفع الملف وراجع البيانات الناقصة.</span></li>
+                <li><b>4</b><span>نزّل ملف PDF الجاهز للطباعة.</span></li>
+              </ol>
             </div>
-            <div className="sidebar-bottom">
-              <p className="template-label">القالب الحالي</p>
-              <div className="template-switcher" aria-label="اختيار القالب">
-                {(Object.keys(TEMPLATE_LABELS) as TemplateId[]).map((id) => <button key={id} className={template === id ? "template-option template-option-active" : "template-option"} onClick={() => changeTemplate(id)}><FileText size={14} /><span>{TEMPLATE_LABELS[id]}</span>{template === id && <BadgeCheck size={14} />}</button>)}
-              </div>
+            <div className="sidebar-note sidebar-security">
+              <div className="note-seal"><ShieldCheck size={16} /></div><div><p>بياناتك تبقى هنا</p><span>المعالجة تتم داخل المتصفح ولا نرفع الملفات إلى خادم.</span></div>
             </div>
           </div>
         </aside>
@@ -646,7 +644,7 @@ export default function Home() {
             </aside>
           </section>
 
-          <footer className="app-footer"><span>معبّي © 2026</span><span>{TEMPLATE_LABELS[template]} · النسخة الأولى</span><span>مصمم لتسهيل العمل المكتبي</span></footer>
+          <footer className="app-footer"><span>نموذجي © 2026</span><span>{TEMPLATE_LABELS[template]} · تجهيز نماذج التأمينات</span><span>تصميم وتطوير حازم موسى</span></footer>
         </main>
       </div>
     </div>
