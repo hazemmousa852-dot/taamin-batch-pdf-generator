@@ -142,7 +142,7 @@ const fieldGroups: FieldGroup[] = [
       { key: "basicWage", label: "أجر / دخل الاشتراك", placeholder: "0.00", type: "number" },
       { key: "variableWage", label: "الأجر المتغير", placeholder: "0.00", type: "number" },
       { key: "totalWage", label: "الأجر الشامل", placeholder: "0.00", type: "number" },
-      { key: "increaseDate", label: "تاريخ بداية العجز (اختياري)", placeholder: "اتركه فارغًا إن لم يوجد", type: "date" },
+      { key: "increaseDate", label: "تاريخ بداية العجز (خانة مستقلة - اختياري)", placeholder: "يوم/شهر/سنة، مثال 31/08/2026", type: "date" },
       { key: "increasePercent", label: "نسبة العجز (اختياري)", placeholder: "اتركها فارغة إن لم توجد", type: "number" },
     ],
   },
