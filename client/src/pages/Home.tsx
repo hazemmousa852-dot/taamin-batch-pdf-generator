@@ -244,6 +244,7 @@ function statusClass(status: ReturnType<typeof recordStatus>) {
 export default function Home() {
   const [records, setRecords] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
   const [activeId, setActiveId] = useState(() => records[0].id);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(records.map((record) => record.id)));
   const [mode, setMode] = useState<Mode>("manual");
   const [template, setTemplate] = useState<TemplateId>("s1");
   const [activeGroup, setActiveGroup] = useState("identity");
@@ -316,6 +317,7 @@ export default function Home() {
   function addRecord() {
     const next = makeEmptyRecord();
     setRecords((current) => [...current, next]);
+    setSelectedIds((current) => new Set(current).add(next.id));
     setActiveId(next.id);
     setMode("manual");
     toast.success("أضيف سجل جديد", { description: "يمكنك بدء تعبئة بيانات المؤمن عليه الآن." });
@@ -328,6 +330,7 @@ export default function Home() {
     }
     const next = records.filter((record) => record.id !== id);
     setRecords(next);
+    setSelectedIds((current) => { const updated = new Set(current); updated.delete(id); return updated; });
     if (id === activeId) setActiveId(next[0].id);
     toast.success("تم حذف السجل");
   }
@@ -354,6 +357,7 @@ export default function Home() {
         return;
       }
       setRecords(imported);
+      setSelectedIds(new Set(imported.map((record) => record.id)));
       setActiveId(imported[0].id);
       setMode("bulk");
       const invalidCount = imported.filter((record) => validateRecord(record, template).length > 0).length;
@@ -377,12 +381,14 @@ export default function Home() {
       sharedHeaders.map((item) => item.label),
       sharedHeaders.map(() => ""),
     ]);
+    const preparedRows = template === "s2" ? 55 : 20;
     const peopleSheet = XLSX.utils.aoa_to_sheet([
       personHeaders.map((item) => item.label),
-      personHeaders.map(() => ""),
+      ...Array.from({ length: preparedRows }, () => personHeaders.map(() => "")),
     ]);
     sharedSheet["!cols"] = sharedHeaders.map(() => ({ wch: 24 }));
     peopleSheet["!cols"] = personHeaders.map(() => ({ wch: 22 }));
+    peopleSheet["!autofilter"] = { ref: `A1:${XLSX.utils.encode_col(personHeaders.length - 1)}${preparedRows + 1}` };
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sharedSheet, template === "s2" ? "البيانات الثابتة" : "بيانات المنشأة والمفوض");
     XLSX.utils.book_append_sheet(workbook, peopleSheet, "بيانات المؤمن عليهم");
@@ -410,7 +416,25 @@ export default function Home() {
   }
 
   function validBatch() {
-    return records.filter((record) => recordStatus(record, template) === "جاهز");
+    return records.filter((record) => selectedIds.has(record.id) && recordStatus(record, template) === "جاهز");
+  }
+
+  function toggleRecordSelection(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    const visibleIds = visibleRecords.map((record) => record.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      visibleIds.forEach((id) => allSelected ? next.delete(id) : next.add(id));
+      return next;
+    });
   }
 
   async function downloadAll() {
@@ -558,13 +582,13 @@ export default function Home() {
 
             <div className="records-table-wrap registry-table">
               <table className="records-table">
-                <thead><tr><th className="check-cell"><input type="checkbox" aria-label="تحديد الكل" /></th><th>المؤمن عليه</th><th>الرقم القومي</th><th>اسم المنشأة</th><th>اكتمال البيانات</th><th>الحالة</th><th /></tr></thead>
+                <thead><tr><th className="check-cell"><input type="checkbox" checked={visibleRecords.length > 0 && visibleRecords.every((record) => selectedIds.has(record.id))} onChange={toggleAllVisible} aria-label="تحديد الكل" /></th><th>المؤمن عليه</th><th>الرقم القومي</th><th>اسم المنشأة</th><th>اكتمال البيانات</th><th>الحالة</th><th /></tr></thead>
                 <tbody>
                   {visibleRecords.map((record, index) => {
                     const status = recordStatus(record, template);
                     const isActive = record.id === activeId;
                     return <tr key={record.id} className={isActive ? "record-row-active" : ""} onClick={() => setActiveId(record.id)}>
-                      <td className="check-cell"><input type="checkbox" checked={isActive} onChange={() => setActiveId(record.id)} onClick={(event) => event.stopPropagation()} aria-label={`تحديد ${record.insuredName || `السجل ${index + 1}`}`} /></td>
+                      <td className="check-cell"><input type="checkbox" checked={selectedIds.has(record.id)} onChange={() => toggleRecordSelection(record.id)} onClick={(event) => event.stopPropagation()} aria-label={`تحديد ${record.insuredName || `السجل ${index + 1}`}`} /></td>
                       <td><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small></div></div></td>
                       <td className="mono-cell">{record.nationalId || "—"}</td><td>{record.establishmentName || "—"}</td>
                       <td><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / relevantFieldCount(template)) * 100))}%` }} /></div><small>{Math.min(filledCount(record), relevantFieldCount(template))} / {relevantFieldCount(template)}</small></div></td>
