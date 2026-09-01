@@ -481,7 +481,7 @@ export default function Home() {
 
     setIsProcessing(true);
     try {
-      const workbook = await createS2CrmWorkbook(completeRecords, assetUrl("s2-crm-template.xlsx"));
+      const workbook = await createS2CrmWorkbook(completeRecords, assetUrl("s2-crm-template-original.xlsx"));
       const companyName = completeRecords[0].establishmentName.trim() || "المنشأة";
       downloadBlob(workbook, `س2-CRM-${companyName.replace(/[\\/:*?"<>|]/g, "-")}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       const skipped = records.length - completeRecords.length;
