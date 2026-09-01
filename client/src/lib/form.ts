@@ -182,7 +182,7 @@ const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ ke
 const digitsOnlyFields: Array<keyof PersonRecord> = [
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
   "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
-  "taxRegistrationNumber", "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
+  "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
 ];
 const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate", "noticeDate"];
 const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage"];
