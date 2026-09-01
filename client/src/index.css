@@ -70,6 +70,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .brand-name { margin: 0; font-family: "Cairo", sans-serif; font-size: 20px; line-height: 1.1; font-weight: 800; letter-spacing: -.045em; }
 .brand-caption { margin: 3px 0 0; color: #8b918b; font-size: 10px; letter-spacing: .02em; }
 .topbar-actions { display: flex; align-items: center; gap: 17px; }
+.topbar-template-tabs { display: flex; align-items: center; gap: 6px; padding: 5px; border: 1px solid #e3ded5; border-radius: 9px; background: #f7f3ed; }
+.topbar-template-tab { min-width: 82px; height: 34px; border: 0; border-radius: 6px; background: transparent; color: #6f7973; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 600; transition: .18s ease; }
+.topbar-template-tab:hover { color: #a26230; background: #fffdfa; }
+.topbar-template-tab-active { color: #fffaf4; background: #c5793b; box-shadow: 0 5px 12px rgba(174,102,48,.2); }
 .connection-state { display: flex; align-items: center; gap: 8px; color: #718078; font-size: 11px; }
 .state-dot, .autosave span, .hint-pin { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: #4e8b68; box-shadow: 0 0 0 3px rgba(78,139,104,.11); }
 .icon-button, .avatar-button, .mobile-menu { border: 0; background: transparent; color: #69736e; display: grid; place-items: center; transition: color 160ms ease, transform 160ms ease; }
@@ -92,6 +96,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .note-seal { flex: 0 0 28px; width: 28px; height: 28px; display: grid; place-items: center; background: rgba(197,121,59,.15); color: #e4a469; border-radius: 50%; }
 .sidebar-note p { margin: 0 0 4px; font-size: 11px; color: #e7eee8; font-weight: 600; }
 .sidebar-note span { display: block; color: #8a978f; font-size: 9px; line-height: 1.65; }
+.sidebar-guide { padding: 15px 13px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); border-radius: 9px; }
+.guide-title { margin: 0 0 14px; color: #f1e8dc; display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; }
+.sidebar-guide ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.sidebar-guide li { display: grid; grid-template-columns: 23px 1fr; align-items: start; gap: 8px; color: #9eaaa2; font-size: 9px; line-height: 1.65; }
+.sidebar-guide li b { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: #f4ddc8; background: rgba(197,121,59,.2); font-size: 9px; }
+.sidebar-security { margin-top: auto; }
 .sidebar-bottom { margin-top: auto; }
 .sidebar-bottom .template-label { margin: 0 0 9px; }
 .template-chip { min-height: 43px; border: 1px solid rgba(255,255,255,.11); background: #2b3832; border-radius: 8px; padding: 0 12px; display: flex; align-items: center; gap: 9px; font-size: 11px; color: #e6ece6; }
@@ -295,6 +305,9 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
   .topbar { padding: 0 18px; }
   .mobile-menu { display: grid; }
   .connection-state { display: none; }
+  .topbar-template-tabs { margin-right: auto; margin-left: 12px; }
+  .topbar-template-tab { min-width: 58px; padding: 0 8px; }
+  .topbar-template-tab svg { display: none; }
   .sidebar { position: fixed; top: 72px; right: 0; bottom: 0; z-index: 25; transform: translateX(100%); transition: transform 220ms cubic-bezier(.23,1,.32,1); box-shadow: -14px 0 30px rgba(32,42,38,.15); }
   .sidebar-open { transform: translateX(0); }
   .main-content { padding: 0 20px 40px; }
@@ -318,6 +331,9 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
   .sidebar { top: 64px; min-height: calc(100vh - 64px); }
   .brand-caption { display: none; }
   .brand-name { font-size: 18px; }
+  .brand-mark, .topbar-actions { display: none; }
+  .topbar-template-tabs { gap: 3px; padding: 3px; margin-left: 0; }
+  .topbar-template-tab { min-width: 48px; height: 32px; padding: 0 5px; font-size: 9px; }
   .main-content { padding: 0 14px 32px; }
   .page-intro { padding: 27px 0 29px; }
   .breadcrumb { margin-bottom: 19px; }
