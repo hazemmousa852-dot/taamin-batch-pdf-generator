@@ -104,6 +104,7 @@ function formatDisplayDate(value: string) {
 type S2Overlay = {
   x: number; y: number; width: number; height: number; value: string;
   boxCount?: number; fontSize?: number; direction?: "rtl" | "ltr"; baseline?: number;
+  alignment?: "left" | "center" | "right";
 };
 async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontBytes: ArrayBuffer) {
   if (typeof document === "undefined" || typeof FontFace === "undefined") return;
@@ -133,6 +134,7 @@ async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontB
       digits.forEach((digit, index) => context.fillText(digit, (firstCell + index + 0.5) * cellWidth, canvas.height * (overlay.baseline ?? 0.49), cellWidth * 0.88));
     } else {
       context.direction = overlay.direction ?? (/[\u0600-\u06ff]/.test(value) ? "rtl" : "ltr");
+      context.textAlign = overlay.alignment ?? "center";
       let size = overlay.fontSize ?? Math.min(12, overlay.height * 0.82);
       context.font = `${size * scale}px TaaminS2Arabic`;
       const maxWidth = Math.max(8, (overlay.width - 3) * scale);
@@ -140,7 +142,10 @@ async function paintS2Overlays(pdfDoc: PDFDocument, overlays: S2Overlay[], fontB
         size -= 0.5;
         context.font = `${size * scale}px TaaminS2Arabic`;
       }
-      context.fillText(value, canvas.width / 2, canvas.height * (overlay.baseline ?? 0.49), maxWidth);
+      const textX = overlay.alignment === "right"
+        ? canvas.width - (2 * scale)
+        : overlay.alignment === "left" ? 2 * scale : canvas.width / 2;
+      context.fillText(value, textX, canvas.height * (overlay.baseline ?? 0.49), maxWidth);
     }
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((item) => item ? resolve(item) : reject(new Error("تعذر رسم بيانات س2")), "image/png"));
     const png = await pdfDoc.embedPng(await blob.arrayBuffer());
@@ -155,7 +160,7 @@ async function fillS2Page(records: PersonRecord[]) {
   const overlays: S2Overlay[] = [
     { x: 574, y: 544, width: 128, height: 13, value: shared.office },
     { x: 58, y: 540, width: 139, height: 15, value: shared.establishmentNumber, boxCount: 8 },
-    { x: 220, y: 510, width: 82, height: 14, value: formatDisplayDate(shared.noticeDate), direction: "ltr", baseline: 0.48 },
+    { x: 220, y: 510, width: 82, height: 14, value: formatDisplayDate(shared.noticeDate), direction: "ltr", alignment: "right", baseline: 0.48 },
     { x: 572, y: 459, width: 130, height: 14, value: shared.applicantName },
     { x: 322, y: 459, width: 124, height: 14, value: shared.applicantRole },
     { x: 430, y: 440, width: 258, height: 14, value: shared.applicantNationalId, boxCount: 14 },
@@ -168,7 +173,7 @@ async function fillS2Page(records: PersonRecord[]) {
     { x: 281, y: 397, width: 120, height: 13, value: shared.unifiedCommercialRegistrationNumber },
     { x: 500, y: 116, width: 190, height: 14, value: shared.manager, fontSize: 11, baseline: 0.45 },
     { x: 270, y: 116, width: 180, height: 14, value: shared.declarationRole, fontSize: 11, baseline: 0.45 },
-    { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDate(shared.releaseDate), direction: "ltr", baseline: 0.48 },
+    { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDate(shared.releaseDate), direction: "ltr", alignment: "right", baseline: 0.48 },
   ];
   // The first two horizontal bands are the table header. Employee data starts
   // one full row below them in the current official template.
