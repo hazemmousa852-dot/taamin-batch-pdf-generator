@@ -47,6 +47,7 @@ import {
   fillPdf,
   safeFileName,
 } from "@/lib/pdf";
+import { createS2CrmWorkbook, isS2CrmComplete, sortS2CrmRecords } from "@/lib/crm";
 import {
   EXCEL_HEADERS,
   filledCount,
@@ -469,6 +470,31 @@ export default function Home() {
     }
   }
 
+  async function downloadS2Crm() {
+    const completeRecords = sortS2CrmRecords(records.filter(isS2CrmComplete));
+    if (!completeRecords.length) {
+      toast.error("لا توجد بيانات مكتملة لتجهيز ملف CRM", {
+        description: "المطلوب: الرقم التأميني، الاسم، أجر الاشتراك، والأجر الشامل.",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const workbook = await createS2CrmWorkbook(completeRecords, assetUrl("s2-crm-template.xlsx"));
+      const companyName = completeRecords[0].establishmentName.trim() || "المنشأة";
+      downloadBlob(workbook, `س2-CRM-${companyName.replace(/[\\/:*?"<>|]/g, "-")}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      const skipped = records.length - completeRecords.length;
+      toast.success(`تم تجهيز ملف CRM بعدد ${completeRecords.length} موظف`, {
+        description: skipped ? `تم تجاهل ${skipped} سجل غير مكتمل البيانات المطلوبة.` : "تم ترتيب الموظفين من الرقم التأميني الأصغر إلى الأكبر.",
+      });
+    } catch (error) {
+      toast.error("تعذر تجهيز ملف CRM", { description: error instanceof Error ? error.message : "حاول مرة أخرى." });
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
   async function downloadSeparateZip() {
     const validRecords = validBatch();
     if (!validRecords.length) { toast.error("لا توجد سجلات مكتملة"); return; }
@@ -540,6 +566,7 @@ export default function Home() {
                   {isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />}
                   {template === "s2" ? "تنزيل ملف س2 المجمّع" : "تنزيل PDF مجمّع"}
                 </Button>
+                {template === "s2" && <Button variant="outline" className="button-outline" onClick={downloadS2Crm} disabled={isProcessing}><FileSpreadsheet size={16} /> تجهيز س2 لمنظومة CRM</Button>}
                 {template !== "s2" && <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>}
                 <Button variant="outline" className="button-outline" onClick={downloadTemplate}><Download size={16} /> قالب Excel</Button>
               </div>
