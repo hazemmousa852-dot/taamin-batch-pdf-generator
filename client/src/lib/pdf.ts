@@ -9,7 +9,9 @@ const ASSET_BASE = configuredBase.endsWith("/") ? configuredBase : `${configured
 const assetUrl = (name: string) => `${ASSET_BASE}assets/${name}`;
 export const TEMPLATE_URLS: Record<TemplateId, string> = {
   s1: assetUrl("taamin-template.pdf"),
-  s2: assetUrl("taamin-s2-template.pdf"),
+  // Keep a versioned filename so browsers and GitHub Pages cannot reuse an
+  // older official S2 background after the template is replaced.
+  s2: assetUrl("taamin-s2-template-v2.pdf"),
   s6: assetUrl("taamin-s6-template.pdf"),
 };
 const ARABIC_FONT_URL = assetUrl("NotoNaskhArabic-Regular.ttf");
@@ -168,7 +170,9 @@ async function fillS2Page(records: PersonRecord[]) {
     { x: 270, y: 116, width: 180, height: 14, value: shared.declarationRole, fontSize: 11, baseline: 0.45 },
     { x: 642, y: 24, width: 82, height: 14, value: formatDisplayDate(shared.releaseDate), direction: "ltr", baseline: 0.48 },
   ];
-  const rowY = 326;
+  // The first two horizontal bands are the table header. Employee data starts
+  // one full row below them in the current official template.
+  const rowY = 308;
   const rowHeight = 16;
   records.slice(0, 11).forEach((record, index) => {
     const y = rowY - (index * rowHeight);
