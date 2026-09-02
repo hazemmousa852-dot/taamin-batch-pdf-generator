@@ -632,11 +632,11 @@ export default function Home() {
                     const isActive = record.id === activeId;
                     return <tr key={record.id} className={isActive ? "record-row-active" : ""} onClick={() => setActiveId(record.id)}>
                       <td className="check-cell"><input type="checkbox" checked={selectedIds.has(record.id)} onChange={() => toggleRecordSelection(record.id)} onClick={(event) => event.stopPropagation()} aria-label={`تحديد ${record.insuredName || `السجل ${index + 1}`}`} /></td>
-                      <td><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small></div></div></td>
-                      <td className="mono-cell">{record.nationalId || "—"}</td><td>{record.establishmentName || "—"}</td>
-                      <td><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / relevantFieldCount(template)) * 100))}%` }} /></div><small>{Math.min(filledCount(record), relevantFieldCount(template))} / {relevantFieldCount(template)}</small></div></td>
-                      <td><span className={`status-badge ${statusClass(status)}`}><span />{status}</span></td>
-                      <td><button className="row-menu" onClick={(event) => { event.stopPropagation(); removeRecord(record.id); }} aria-label="حذف السجل"><Trash2 size={15} /></button></td>
+                      <td className="mobile-person-cell"><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small></div></div></td>
+                      <td className="mono-cell" data-label="الرقم القومي">{record.nationalId || "—"}</td><td data-label="اسم المنشأة">{record.establishmentName || "—"}</td>
+                      <td data-label="اكتمال البيانات"><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / relevantFieldCount(template)) * 100))}%` }} /></div><small>{Math.min(filledCount(record), relevantFieldCount(template))} / {relevantFieldCount(template)}</small></div></td>
+                      <td data-label="الحالة"><span className={`status-badge ${statusClass(status)}`}><span />{status}</span></td>
+                      <td className="mobile-delete-cell"><button className="row-menu" onClick={(event) => { event.stopPropagation(); removeRecord(record.id); }} aria-label="حذف السجل"><Trash2 size={15} /></button></td>
                     </tr>;
                   })}
                   {!visibleRecords.length && <tr><td colSpan={7} className="empty-table">لا توجد نتائج بهذا البحث.</td></tr>}
