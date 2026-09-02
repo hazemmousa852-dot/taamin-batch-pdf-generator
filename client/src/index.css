@@ -246,12 +246,13 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
 .empty-table { text-align: center; padding: 28px !important; color: #9da59f !important; }
 .editor-layout { display: grid; grid-template-columns: minmax(0, 1.17fr) minmax(275px, .63fr); gap: 26px; align-items: start; margin-top: 54px; }
 .editor-panel, .preview-panel { border-top: 2px solid #c5793b; background: rgba(255,253,250,.65); }
+.editor-panel, .preview-panel { min-width: 0; }
 .editor-panel { padding: 24px 0 0; }
 .preview-panel { padding: 24px 0 0; }
 .editor-header, .preview-header { align-items: flex-start; padding: 0 2px; }
 .editor-header h2, .preview-header h2 { font-size: 22px; }
 .editor-header > .status-badge { margin-top: 10px; }
-.group-tabs { display: flex; border-bottom: 1px solid #e2ded6; margin-top: 24px; overflow-x: auto; }
+.group-tabs { display: flex; max-width: 100%; border-bottom: 1px solid #e2ded6; margin-top: 24px; overflow-x: auto; }
 .group-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; min-height: 44px; padding: 0 11px; display: flex; align-items: center; gap: 6px; color: #9ca29c; font-size: 10px; white-space: nowrap; transition: color 160ms ease, border 160ms ease; }
 .group-tabs button:hover { color: #59655e; }
 .group-tabs .group-tab-active { color: #b16832; border-bottom-color: #c5793b; }
