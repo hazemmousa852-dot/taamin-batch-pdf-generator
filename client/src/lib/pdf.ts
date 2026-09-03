@@ -415,6 +415,12 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
   for (const buttonName of ["Reset", "Push Button0", "Print", "Push Button1"]) {
     try { form.removeField(form.getButton(buttonName)); } catch { /* not present in every template */ }
   }
+  // Some official source PDFs carry a stray Arabic "ت" as the default value
+  // of otherwise empty text widgets. Clear every editable text value first so
+  // only data supplied by the user is baked into the generated form.
+  for (const field of form.getFields()) {
+    if (field instanceof PDFTextField) field.setText("");
+  }
   const textBindings = template === "s6" ? s6TextBindings : s1TextBindings;
   const boxBindings = template === "s6" ? s6BoxBindings : s1BoxBindings;
   for (const key of Object.keys(textBindings) as Array<keyof PersonRecord>) if (record[key]) {

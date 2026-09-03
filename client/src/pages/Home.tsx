@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -50,6 +51,7 @@ import {
 import { createS2CrmWorkbook, isS2CrmComplete, sortS2CrmRecords } from "@/lib/crm";
 import {
   EXCEL_HEADERS,
+  CODED_OPTIONS,
   filledCount,
   makeEmptyRecord,
   mapExcelRow,
@@ -217,12 +219,64 @@ const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
   "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
   "noticeDate", "taxRegistrationNumber", "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber", "manager", "declarationRole", "releaseDate",
 ]);
-const SELECT_OPTIONS: Partial<Record<EditableKey, string[]>> = {
-  category: ["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"],
-  medicalExam: ["نعم", "لا"],
-  establishmentType: ["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"],
-  gender: ["ذكر", "أنثى"],
+type UiOption = { value: string; label: string };
+const plainOptions = (values: string[]): UiOption[] => values.map((value) => ({ value, label: value }));
+const SELECT_OPTIONS: Partial<Record<EditableKey, UiOption[]>> = {
+  category: plainOptions(["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"]),
+  medicalExam: plainOptions(["نعم", "لا"]),
+  establishmentType: plainOptions(["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"]),
+  gender: plainOptions(["ذكر", "أنثى"]),
+  sector: CODED_OPTIONS.sector,
+  contributionCode: CODED_OPTIONS.contributionCode,
+  workType: CODED_OPTIONS.workType,
 };
+const EXPLICITLY_OPTIONAL_FIELDS = new Set<EditableKey>([
+  "sector", "contributionCode", "workType", "country", "city", "governorate",
+  "buildingNumber", "district", "street", "center", "address",
+]);
+
+function excelNote(key: EditableKey, label: string) {
+  const coded = (CODED_OPTIONS as Partial<Record<EditableKey, UiOption[]>>)[key];
+  if (coded) return `${label}: اختر من القائمة. سيستخدم البرنامج الرقم الموجود قبل الوصف فقط. هذا الحقل اختياري.`;
+  if (/Date$/.test(key) || key === "noticeDate" || key === "releaseDate") return `${label}: أدخل التاريخ بصيغة يوم/شهر/سنة، مثال 31/08/2026.`;
+  if (["nationalId", "applicantNationalId"].includes(key)) return `${label}: اكتب 14 رقمًا بدون مسافات.`;
+  if (["insuranceNumber", "applicantInsuranceNumber", "establishmentNumber"].includes(key)) return `${label}: اكتب الرقم كما هو بدون فواصل.`;
+  if (["country", "city", "governorate", "buildingNumber", "district", "street", "center", "address"].includes(key)) return `${label}: بيانات العنوان اختيارية ويمكن تركها فارغة.`;
+  return `${label}: اكتب القيمة التي تريد ظهورها في النموذج، ويمكن ترك الحقول غير المطلوبة فارغة.`;
+}
+
+async function addExcelGuidance(data: ArrayBuffer, peopleColumns: Array<{ key: keyof PersonRecord }>, rowCount: number) {
+  const zip = await JSZip.loadAsync(data);
+  for (const sheetPath of ["xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"]) {
+    const entry = zip.file(sheetPath);
+    if (!entry) continue;
+    let xml = await entry.async("string");
+    xml = xml.replace(/<sheetView([^>]*)>/, (opening) => xml.includes("<pane ") ? opening : `${opening}<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>`);
+    zip.file(sheetPath, xml);
+  }
+  const peopleEntry = zip.file("xl/worksheets/sheet2.xml");
+  if (peopleEntry) {
+    let xml = await peopleEntry.async("string");
+    const validations: string[] = [];
+    const listColumns: Record<string, { column: string; length: number }> = {
+      sector: { column: "A", length: CODED_OPTIONS.sector.length },
+      contributionCode: { column: "B", length: CODED_OPTIONS.contributionCode.length },
+      workType: { column: "C", length: CODED_OPTIONS.workType.length },
+    };
+    peopleColumns.forEach((item, index) => {
+      const list = listColumns[item.key];
+      if (!list) return;
+      const column = XLSX.utils.encode_col(index);
+      validations.push(`<dataValidation type="list" allowBlank="1" showErrorMessage="1" errorTitle="قيمة غير صحيحة" error="اختر قيمة من القائمة" sqref="${column}2:${column}${rowCount + 1}"><formula1>'قوائم الأكواد'!$${list.column}$1:$${list.column}$${list.length}</formula1></dataValidation>`);
+    });
+    if (validations.length) {
+      const node = `<dataValidations count="${validations.length}">${validations.join("")}</dataValidations>`;
+      xml = xml.replace("</worksheet>", `${node}</worksheet>`);
+      zip.file("xl/worksheets/sheet2.xml", xml);
+    }
+  }
+  return zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
+}
 function initials(value: string) {
   return value
     .trim()
@@ -403,10 +457,26 @@ export default function Home() {
     sharedSheet["!cols"] = sharedHeaders.map(() => ({ wch: 24 }));
     peopleSheet["!cols"] = personHeaders.map(() => ({ wch: 22 }));
     peopleSheet["!autofilter"] = { ref: `A1:${XLSX.utils.encode_col(personHeaders.length - 1)}${preparedRows + 1}` };
+    sharedHeaders.forEach((item, index) => {
+      const cell = sharedSheet[XLSX.utils.encode_cell({ r: 0, c: index })];
+      if (cell) cell.c = [{ a: "نموذجي", t: excelNote(item.key as EditableKey, item.label) }];
+    });
+    personHeaders.forEach((item, index) => {
+      const cell = peopleSheet[XLSX.utils.encode_cell({ r: 0, c: index })];
+      if (cell) cell.c = [{ a: "نموذجي", t: excelNote(item.key as EditableKey, item.label) }];
+    });
+    const listsSheet = XLSX.utils.aoa_to_sheet(Array.from({ length: 9 }, (_, index) => [
+      CODED_OPTIONS.sector[index] ? `${CODED_OPTIONS.sector[index].value} - ${CODED_OPTIONS.sector[index].label}` : "",
+      CODED_OPTIONS.contributionCode[index] ? `${CODED_OPTIONS.contributionCode[index].value} - ${CODED_OPTIONS.contributionCode[index].label}` : "",
+      CODED_OPTIONS.workType[index] ? `${CODED_OPTIONS.workType[index].value} - ${CODED_OPTIONS.workType[index].label}` : "",
+    ]));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sharedSheet, template === "s2" ? "البيانات الثابتة" : "بيانات المنشأة والمفوض");
     XLSX.utils.book_append_sheet(workbook, peopleSheet, "بيانات المؤمن عليهم");
-    const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+    XLSX.utils.book_append_sheet(workbook, listsSheet, "قوائم الأكواد");
+    workbook.Workbook = { Sheets: [{ Hidden: 0 }, { Hidden: 0 }, { Hidden: 1 }] };
+    const rawData = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+    const data = await addExcelGuidance(rawData, personHeaders, preparedRows);
     downloadBlob(data, template === "s2" ? "قالب-بيانات-س2.xlsx" : "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     toast.success("تم تنزيل قالب Excel");
   }
@@ -599,9 +669,9 @@ export default function Home() {
             </div>
 
             {template !== "s2" && <Card className="mode-card registry-card">
-              <div className="mode-copy"><div className="mode-icon"><ClipboardList size={18} /></div><div><h3>كيف تريد البدء؟</h3><p>اختر إدخال سجل يدويًا أو حمّل دفعة من Excel.</p></div></div>
+              <div className="mode-copy"><div className="mode-icon"><ClipboardList size={18} /></div><div><h3>كيف تريد إدخال البيانات؟</h3><p>لعدة موظفين: استخدم Excel. لموظف واحد أو تعديل سريع: استخدم الإدخال اليدوي.</p></div></div>
               <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)} className="mode-tabs">
-                <TabsList><TabsTrigger value="manual"><UserRound size={15} /> سجل يدوي</TabsTrigger><TabsTrigger value="bulk"><UsersRound size={15} /> دفعة Excel</TabsTrigger></TabsList>
+                <TabsList><TabsTrigger value="manual"><UserRound size={15} /> إدخال يدوي</TabsTrigger><TabsTrigger value="bulk"><UsersRound size={15} /> رفع دفعة Excel</TabsTrigger></TabsList>
               </Tabs>
             </Card>}
 
@@ -660,7 +730,7 @@ export default function Home() {
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
                     <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
                     <div className="fields-grid">
-                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const maxLength = field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : field.key === "phone" || field.key === "applicantPhone" ? 11 : undefined; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={maxLength} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && <span className="field-error">{issue}</span>}</div>; })}
+                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const isOptional = EXPLICITLY_OPTIONAL_FIELDS.has(field.key); const maxLength = field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : field.key === "phone" || field.key === "applicantPhone" ? 11 : undefined; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}{isOptional && <span className="optional-label">اختياري</span>}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option.value} value={option.value}>{option.value === option.label ? option.label : `${option.value} - ${option.label}`}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={maxLength} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && <span className="field-error">{issue}</span>}</div>; })}
                     </div>
                   </div>;
                 })}

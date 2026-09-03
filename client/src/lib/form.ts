@@ -5,6 +5,35 @@ export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1
 export type RecordStatus = "مسودة" | "جاهز" | "ناقص";
 export type ValidationIssue = { key: keyof PersonRecord; message: string };
 
+export type CodedOption = { value: string; label: string };
+export const CODED_OPTIONS = {
+  sector: [
+    { value: "1", label: "العاملين بالقطاع الحكومي والهيئات والمؤسسات العامة التابعة للحكومة" },
+    { value: "2", label: "العاملين بالقطاع العام وقطاع الأعمال" },
+    { value: "3", label: "العاملين بالقطاع الخاص" },
+    { value: "4", label: "العاملين بقطاع المقاولات" },
+    { value: "5", label: "العاملين بقطاع النقل البري" },
+    { value: "6", label: "العاملين بقطاع المخابز" },
+    { value: "7", label: "العاملين بالخارج" },
+    { value: "8", label: "أصحاب الأعمال ومن في حكمهم" },
+    { value: "9", label: "العاملون بقطاع العمالة غير المنتظمة" },
+  ],
+  contributionCode: [
+    { value: "11", label: "عادية" }, { value: "12", label: "أعمال صعبة" },
+    { value: "13", label: "أعمال خطرة" }, { value: "14", label: "متدرج بدون أجر" },
+    { value: "15", label: "متدرج بأجر" },
+  ],
+  workType: [
+    { value: "01", label: "فعلية" },
+    { value: "02", label: "بعد سنتين من تأمين البطالة" },
+    { value: "03", label: "بعد سن إيقاف انتفاع تأمين الشيخوخة والعجز والوفاة بالداخل" },
+    { value: "04", label: "بعد سن إيقاف انتفاع تأمين الشيخوخة والعجز والوفاة بالخارج" },
+    { value: "05", label: "تأمين مع إيقاف تأمين المرضى" },
+    { value: "06", label: "بعد سن الـ 60" },
+    { value: "21", label: "خدمة تجنيد إجبارية" },
+  ],
+} satisfies Record<"sector" | "contributionCode" | "workType", CodedOption[]>;
+
 export type PersonRecord = {
   id: string;
   office: string;
@@ -166,14 +195,14 @@ export function makeEmptyRecord(): PersonRecord {
 const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
   s1: [
     "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
-    "insuredName", "insuranceNumber", "nationalId", "qualification", "profession", "sector", "category", "medicalExam",
-    "contributionCode", "startDate", "basicWage", "totalWage", "establishmentName",
-    "establishmentNumber", "establishmentType", "country", "governorate", "buildingNumber", "street", "center", "phone", "workType", "address",
+    "insuredName", "insuranceNumber", "nationalId", "qualification", "profession", "category", "medicalExam",
+    "startDate", "basicWage", "totalWage", "establishmentName",
+    "establishmentNumber", "establishmentType", "phone",
   ],
   s6: [
     "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
     "insuredName", "insuranceNumber", "nationalId", "establishmentName", "establishmentNumber",
-    "endDate", "endReason", "address",
+    "endDate", "endReason",
   ],
   s2: ["insuredName", "insuranceNumber", "nationalId", "startDate", "basicWage", "totalWage"],
 };
@@ -343,6 +372,12 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
       }
     }
   });
+  for (const key of Object.keys(CODED_OPTIONS) as Array<keyof typeof CODED_OPTIONS>) {
+    const current = normalizeText(result[key]);
+    if (!current) continue;
+    const option = CODED_OPTIONS[key].find(({ value, label }) => current === value || current === label || current.startsWith(`${value} -`) || current.startsWith(`${value}-`));
+    if (option) result[key] = option.value;
+  }
   return result;
 }
 
