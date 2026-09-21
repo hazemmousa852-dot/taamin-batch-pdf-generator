@@ -184,6 +184,16 @@ const fieldGroups: FieldGroup[] = [
       { key: "noticeDate", label: "تاريخ الإخطار", placeholder: "تاريخ أعلى الصفحة", type: "date" },
       { key: "endDate", label: "تاريخ انتهاء الاشتراك", placeholder: "تاريخ الانتهاء", type: "date" },
       { key: "endReason", label: "سبب انتهاء الاشتراك", placeholder: "سبب الانتهاء" },
+      { key: "hireDate", label: "تاريخ الالتحاق (س2)", placeholder: "اختياري", type: "date" },
+      { key: "receiptNumber", label: "رقم وصل الخطاب المسجل بعلم الوصول (س6)", placeholder: "اختياري" },
+      { key: "receiptDate", label: "تاريخ وصل الخطاب المسجل (س6)", placeholder: "اختياري", type: "date" },
+      { key: "insuredSignDate", label: "تاريخ توقيع المؤمن عليه (س6)", placeholder: "اختياري", type: "date" },
+      { key: "managerSignDate", label: "تاريخ توقيع المدير المسؤول (س6)", placeholder: "اختياري", type: "date" },
+      { key: "signatureVerifier", label: "اسم القائم بمطابقة التوقيع (س6)", placeholder: "اختياري" },
+      { key: "disputeManagerSignDate", label: "تاريخ توقيع المدير المسؤول في حالة النزاع (س6)", placeholder: "اختياري", type: "date" },
+      { key: "disputeInsuredSignDate", label: "تاريخ توقيع المؤمن عليه في حالة النزاع (س6)", placeholder: "اختياري", type: "date" },
+      { key: "applicantSignDate", label: "تاريخ توقيع مقدم الطلب (س6)", placeholder: "اختياري", type: "date" },
+      { key: "signatureMatchDate", label: "تاريخ مطابقة التوقيع (س1)", placeholder: "اختياري", type: "date" },
       { key: "address", label: "العنوان", placeholder: "العنوان بالتفصيل", wide: true },
     ],
   },
@@ -192,17 +202,17 @@ const fieldGroups: FieldGroup[] = [
 // Only show fields that have a verified destination in the selected official PDF.
 // This prevents users from entering data that would never appear in the export.
 const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
-  s1: new Set([
-    "insuredName", "nationalId", "insuranceNumber", "category", "country", "establishmentName",
+  s1: new Set<EditableKey>([
+    "releaseDate", "signatureMatchDate", "insuredName", "nationalId", "insuranceNumber", "category", "country", "establishmentName",
     "establishmentNumber", "establishmentType", "office", "profession", "sector", "qualification", "startDate", "contributionCode",
     "workType", "medicalExam", "basicWage", "totalWage", "increaseDate", "increasePercent", "governorate",
     "buildingNumber", "district", "street", "center", "phone", "address", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
   ]),
-  s6: new Set([
+  s6: new Set<EditableKey>(["receiptNumber","receiptDate","insuredSignDate","managerSignDate","signatureVerifier","disputeManagerSignDate","disputeInsuredSignDate","applicantSignDate",
     "insuredName", "nationalId", "insuranceNumber", "establishmentName", "establishmentNumber", "office",
     "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId", "endDate", "endReason", "address",
   ]),
-  s2: new Set([
+  s2: new Set<EditableKey>(["hireDate",
     "office", "establishmentNumber", "noticeDate", "applicantName", "applicantRole", "applicantNationalId",
     "applicantInsuranceNumber", "applicantPhone", "taxRegistrationNumber", "establishmentName", "sector",
     "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber", "manager", "declarationRole", "releaseDate",
@@ -211,7 +221,7 @@ const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
 };
 const IDENTIFIER_FIELDS = new Set<EditableKey>([
   "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
-  "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
+  "professionCode", "phone", "applicantPhone", "buildingNumber",
   "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
 ]);
 const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
@@ -222,7 +232,7 @@ const SHARED_EXCEL_FIELDS = new Set<EditableKey>([
 type UiOption = { value: string; label: string };
 const plainOptions = (values: string[]): UiOption[] => values.map((value) => ({ value, label: value }));
 const SELECT_OPTIONS: Partial<Record<EditableKey, UiOption[]>> = {
-  category: plainOptions(["عاملين لدى الغير", "أصحاب أعمال", "عمالة غير منتظمة"]),
+  category: plainOptions(["عاملين لدى الغير", "أصحاب أعمال لهم منشآت", "العاملين بالمخابز"]),
   medicalExam: plainOptions(["نعم", "لا"]),
   establishmentType: plainOptions(["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"]),
   gender: plainOptions(["ذكر", "أنثى"]),
@@ -411,11 +421,12 @@ export default function Home() {
       const sharedRecord = sharedRow ? mapExcelRow(sharedRow) : undefined;
       const imported = rows.flatMap((row) => {
         const record = mapExcelRow(row);
-        const hasPersonData = Array.from(TEMPLATE_FIELDS[template]).some((key) =>
+        const personKeys = EXCEL_HEADERS.map(({ key }) => key).filter((key): key is EditableKey => key !== "id");
+        const hasPersonData = personKeys.some((key) =>
           !SHARED_EXCEL_FIELDS.has(key) && record[key].trim(),
         );
         if (!hasPersonData) return [];
-        if (sharedRecord) for (const key of SHARED_EXCEL_FIELDS) if (!record[key] && sharedRecord[key]) record[key] = sharedRecord[key];
+        if (sharedRecord) for (const key of Array.from(SHARED_EXCEL_FIELDS)) if (!record[key] && sharedRecord[key]) record[key] = sharedRecord[key];
         return [record];
       });
       if (!imported.length) {
@@ -439,46 +450,13 @@ export default function Home() {
   }
 
   async function downloadTemplate() {
-    const sharedHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id" && SHARED_EXCEL_FIELDS.has(item.key as EditableKey)
-      && (template !== "s2" || TEMPLATE_FIELDS.s2.has(item.key as EditableKey)));
-    const alwaysIncludedPersonFields = template === "s2" ? new Set<EditableKey>() : new Set<EditableKey>(["endDate", "endReason"]);
-    const personHeaders = EXCEL_HEADERS.filter((item) => item.key !== "id"
-      && (TEMPLATE_FIELDS[template].has(item.key as EditableKey) || alwaysIncludedPersonFields.has(item.key as EditableKey))
-      && !SHARED_EXCEL_FIELDS.has(item.key as EditableKey));
-    const sharedSheet = XLSX.utils.aoa_to_sheet([
-      sharedHeaders.map((item) => item.label),
-      sharedHeaders.map(() => ""),
-    ]);
-    const preparedRows = template === "s2" ? 55 : 20;
-    const peopleSheet = XLSX.utils.aoa_to_sheet([
-      personHeaders.map((item) => item.label),
-      ...Array.from({ length: preparedRows }, () => personHeaders.map(() => "")),
-    ]);
-    sharedSheet["!cols"] = sharedHeaders.map(() => ({ wch: 24 }));
-    peopleSheet["!cols"] = personHeaders.map(() => ({ wch: 22 }));
-    peopleSheet["!autofilter"] = { ref: `A1:${XLSX.utils.encode_col(personHeaders.length - 1)}${preparedRows + 1}` };
-    sharedHeaders.forEach((item, index) => {
-      const cell = sharedSheet[XLSX.utils.encode_cell({ r: 0, c: index })];
-      if (cell) cell.c = [{ a: "نموذجي", t: excelNote(item.key as EditableKey, item.label) }];
-    });
-    personHeaders.forEach((item, index) => {
-      const cell = peopleSheet[XLSX.utils.encode_cell({ r: 0, c: index })];
-      if (cell) cell.c = [{ a: "نموذجي", t: excelNote(item.key as EditableKey, item.label) }];
-    });
-    const listsSheet = XLSX.utils.aoa_to_sheet(Array.from({ length: 9 }, (_, index) => [
-      CODED_OPTIONS.sector[index] ? `${CODED_OPTIONS.sector[index].value} - ${CODED_OPTIONS.sector[index].label}` : "",
-      CODED_OPTIONS.contributionCode[index] ? `${CODED_OPTIONS.contributionCode[index].value} - ${CODED_OPTIONS.contributionCode[index].label}` : "",
-      CODED_OPTIONS.workType[index] ? `${CODED_OPTIONS.workType[index].value} - ${CODED_OPTIONS.workType[index].label}` : "",
-    ]));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sharedSheet, template === "s2" ? "البيانات الثابتة" : "بيانات المنشأة والمفوض");
-    XLSX.utils.book_append_sheet(workbook, peopleSheet, "بيانات المؤمن عليهم");
-    XLSX.utils.book_append_sheet(workbook, listsSheet, "قوائم الأكواد");
-    workbook.Workbook = { Sheets: [{ Hidden: 0 }, { Hidden: 0 }, { Hidden: 1 }] };
-    const rawData = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
-    const data = await addExcelGuidance(rawData, personHeaders, preparedRows);
-    downloadBlob(data, template === "s2" ? "قالب-بيانات-س2.xlsx" : "قالب-بيانات-التأمينات.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    toast.success("تم تنزيل قالب Excel");
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL}assets/taamin-flexible-template.b64`);
+      if (!response.ok) throw new Error("تعذر تحميل القالب");
+      const bytes = Uint8Array.from(atob((await response.text()).trim()), (char) => char.charCodeAt(0));
+      downloadBlob(bytes, "قالب-التأمينات-مرن.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      toast.success("تم تنزيل القالب المرن — جميع البيانات اختيارية");
+    } catch { toast.error("تعذر تنزيل القالب؛ حاول مرة أخرى"); }
   }
 
   async function downloadSelected() {
@@ -524,7 +502,7 @@ export default function Home() {
   async function downloadAll() {
     const validRecords = validBatch();
     if (!validRecords.length) {
-      toast.error("لا توجد سجلات مكتملة", { description: "أكمل الاسم والرقم القومي واسم المنشأة أولًا." });
+      toast.error("لا توجد سجلات محددة قابلة للتصدير", { description: "أدخل أي بيانات واختَر السجلات المراد تصديرها. جميع الحقول اختيارية." });
       return;
     }
     setIsProcessing(true);
@@ -532,7 +510,7 @@ export default function Home() {
       const pdf = await createMergedPdf(validRecords, template);
       downloadBlob(pdf, `نماذج-التأمينات-مجمعة-${new Date().toISOString().slice(0, 10)}.pdf`, "application/pdf");
       const skipped = records.length - validRecords.length;
-      toast.success(`تم دمج ${validRecords.length} نموذجًا`, { description: skipped ? `تم استبعاد ${skipped} سجل ناقص.` : "كل النماذج مرتبة داخل PDF واحد." });
+      toast.success(`تم دمج ${validRecords.length} نموذجًا`, { description: skipped ? `تم استبعاد ${skipped} سجل غير محدد أو به قيمة غير صالحة.` : "كل النماذج مرتبة داخل PDF واحد." });
     } catch (error) {
       toast.error("تعذر تجهيز الدفعة", { description: error instanceof Error ? error.message : "حاول مرة أخرى." });
     } finally {
@@ -543,8 +521,8 @@ export default function Home() {
   async function downloadS2Crm() {
     const completeRecords = sortS2CrmRecords(records.filter(isS2CrmComplete));
     if (!completeRecords.length) {
-      toast.error("لا توجد بيانات مكتملة لتجهيز ملف CRM", {
-        description: "المطلوب: الرقم التأميني، الاسم، أجر الاشتراك، والأجر الشامل.",
+      toast.error("لا توجد بيانات لتجهيز ملف CRM", {
+        description: "أدخل بيانات سجل واحد على الأقل؛ الخانات الفارغة اختيارية.",
       });
       return;
     }
@@ -567,7 +545,7 @@ export default function Home() {
 
   async function downloadSeparateZip() {
     const validRecords = validBatch();
-    if (!validRecords.length) { toast.error("لا توجد سجلات مكتملة"); return; }
+    if (!validRecords.length) { toast.error("لا توجد سجلات محددة قابلة للتصدير"); return; }
     setIsProcessing(true);
     try {
       const zip = await createZip(validRecords, template);
@@ -614,7 +592,7 @@ export default function Home() {
               <ol>
                 <li><b>1</b><span>اختر س1 أو س2 أو س6 من أعلى الصفحة.</span></li>
                 <li><b>2</b><span>نزّل قالب Excel واملأ البيانات.</span></li>
-                <li><b>3</b><span>ارفع الملف وراجع البيانات الناقصة.</span></li>
+                <li><b>3</b><span>ارفع الملف وراجع البيانات المدخلة.</span></li>
                 <li><b>4</b><span>نزّل ملف PDF الجاهز للطباعة.</span></li>
               </ol>
             </div>
@@ -730,7 +708,7 @@ export default function Home() {
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
                     <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
                     <div className="fields-grid">
-                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const isOptional = EXPLICITLY_OPTIONAL_FIELDS.has(field.key); const maxLength = field.key === "nationalId" || field.key === "applicantNationalId" ? 14 : field.key === "phone" || field.key === "applicantPhone" ? 11 : undefined; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}{isOptional && <span className="optional-label">اختياري</span>}</Label>{options ? <select id={field.key} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} aria-invalid={Boolean(issue)}><option value="">{field.placeholder}</option>{options.map((option) => <option key={option.value} value={option.value}>{option.value === option.label ? option.label : `${option.value} - ${option.label}`}</option>)}</select> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} maxLength={maxLength} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && <span className="field-error">{issue}</span>}</div>; })}
+                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const isOptional = true; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}{isOptional && <span className="optional-label">اختياري</span>}</Label>{options ? <><Input id={field.key} list={`${field.key}-options`} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder="اختياري — اختر أو اكتب" /><datalist id={`${field.key}-options`}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</datalist></> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && <span className="field-error">{issue}</span>}</div>; })}
                     </div>
                   </div>;
                 })}

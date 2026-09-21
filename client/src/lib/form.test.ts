@@ -16,17 +16,36 @@ function validRecord() {
 }
 
 describe("Arabic form validation", () => {
+  it("allows blank and partial forms for all three templates", () => {
+    for (const template of ["s1", "s2", "s6"] as const) {
+      expect(validateRecord(makeEmptyRecord(), template)).toEqual([]);
+      const partial = { ...makeEmptyRecord(), insuredName: "اسم فقط" };
+      expect(validateRecord(partial, template)).toEqual([]);
+      expect(recordStatus(partial, template)).toBe("جاهز");
+    }
+  });
+  it("imports the approved optional headings without imposing list membership", () => {
+    const value = mapExcelRow({
+      "تاريخ الالتحاق (س2) (DD/MM/YYYY)": "21/09/2026",
+      "رقم وصل الخطاب المسجل بعلم الوصول (س6)": "وصل 123",
+      "اسم القائم بمطابقة التوقيع (س6)": "اسم المطابق",
+      "الفئة": "فئة مخصصة",
+    });
+    expect(value.hireDate).toBe("2026-09-21");
+    expect(value.receiptNumber).toBe("وصل 123");
+    expect(value.signatureVerifier).toBe("اسم المطابق");
+    expect(value.category).toBe("فئة مخصصة");
+    expect(validateRecord(value, "s6")).toEqual([]);
+  });
   it("normalizes Arabic and Persian digits", () => expect(normalizeDigits("١٢٣۴۵")).toBe("12345"));
   it("accepts a complete S1 record", () => {
     const record = validRecord();
     expect(validateRecord(record, "s1")).toEqual([]);
     expect(recordStatus(record, "s1")).toBe("جاهز");
   });
-  it("rejects invalid national IDs and reversed dates", () => {
+  it("allows partial identifiers and date chronology", () => {
     const record = { ...validRecord(), nationalId: "123", endDate: "2020-01-01" };
-    const messages = validateRecord(record, "s6").map((issue) => issue.message).join(" ");
-    expect(messages).toContain("14 رقمًا");
-    expect(messages).toContain("يسبق تاريخ البدء");
+    expect(validateRecord(record, "s6")).toEqual([]);
   });
   it("normalizes imported dates and Arabic digits", () => {
     const record = mapExcelRow({ "الرقم القومي": "٢٩٥٠١٠١٠١٢٣٤٥٦", "تاريخ بدء الاشتراك": new Date(2024, 4, 19) });
@@ -43,9 +62,9 @@ describe("Arabic form validation", () => {
     expect(record.insuranceNumber).toBe("123456789");
     expect(record.applicantInsuranceNumber).toBe("987654321");
   });
-  it("requires whole-number wages for S2", () => {
+  it("accepts decimal wages for S2", () => {
     const record = { ...validRecord(), basicWage: "2500.50" };
-    expect(validateRecord(record, "s2").map((issue) => issue.message).join(" ")).toContain("أرقام صحيحة");
+    expect(validateRecord(record, "s2")).toEqual([]);
     expect(validateRecord({ ...record, basicWage: "2500" }, "s2")).toEqual([]);
   });
 });

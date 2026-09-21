@@ -35,6 +35,17 @@ export const CODED_OPTIONS = {
 } satisfies Record<"sector" | "contributionCode" | "workType", CodedOption[]>;
 
 export type PersonRecord = {
+  hireDate: string;
+  receiptNumber: string;
+  receiptDate: string;
+  insuredSignDate: string;
+  managerSignDate: string;
+  signatureVerifier: string;
+  disputeManagerSignDate: string;
+  disputeInsuredSignDate: string;
+  applicantSignDate: string;
+  signatureMatchDate: string;
+
   id: string;
   office: string;
   establishmentName: string;
@@ -87,6 +98,17 @@ export type PersonRecord = {
 };
 
 export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = [
+  { key: "hireDate", label: "تاريخ الالتحاق (س2) (DD/MM/YYYY)" },
+  { key: "receiptNumber", label: "رقم وصل الخطاب المسجل بعلم الوصول (س6)" },
+  { key: "receiptDate", label: "تاريخ وصل الخطاب المسجل (س6) (DD/MM/YYYY)" },
+  { key: "insuredSignDate", label: "تاريخ توقيع المؤمن عليه (س6) (DD/MM/YYYY)" },
+  { key: "managerSignDate", label: "تاريخ توقيع المدير المسؤول (س6) (DD/MM/YYYY)" },
+  { key: "signatureVerifier", label: "اسم القائم بمطابقة التوقيع (س6)" },
+  { key: "disputeManagerSignDate", label: "تاريخ توقيع المدير المسؤول في حالة النزاع (س6) (DD/MM/YYYY)" },
+  { key: "disputeInsuredSignDate", label: "تاريخ توقيع المؤمن عليه في حالة النزاع (س6) (DD/MM/YYYY)" },
+  { key: "applicantSignDate", label: "تاريخ توقيع مقدم الطلب (س6) (DD/MM/YYYY)" },
+  { key: "signatureMatchDate", label: "تاريخ مطابقة التوقيع (س1) (DD/MM/YYYY)" },
+
   { key: "insuredName", label: "اسم المؤمن عليه" },
   { key: "nationalId", label: "الرقم القومي" },
   { key: "insuranceNumber", label: "الرقم التأميني" },
@@ -138,6 +160,17 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
 ];
 
 const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
+  hireDate: "",
+  receiptNumber: "",
+  receiptDate: "",
+  insuredSignDate: "",
+  managerSignDate: "",
+  signatureVerifier: "",
+  disputeManagerSignDate: "",
+  disputeInsuredSignDate: "",
+  applicantSignDate: "",
+  signatureMatchDate: "",
+
   office: "",
   establishmentName: "",
   establishmentNumber: "",
@@ -208,12 +241,7 @@ const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
 };
 
 const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ key, label }) => [key, label]));
-const digitsOnlyFields: Array<keyof PersonRecord> = [
-  "nationalId", "applicantNationalId", "insuranceNumber", "applicantInsuranceNumber", "establishmentNumber",
-  "professionCode", "contributionCode", "phone", "applicantPhone", "buildingNumber",
-  "commercialRegistrationNumber", "unifiedCommercialRegistrationNumber",
-];
-const dateFields: Array<keyof PersonRecord> = ["startDate", "birthDate", "increaseDate", "releaseDate", "endDate", "noticeDate"];
+const dateFields: Array<keyof PersonRecord> = ["hireDate", "receiptDate", "insuredSignDate", "managerSignDate", "disputeManagerSignDate", "disputeInsuredSignDate", "applicantSignDate", "signatureMatchDate", "startDate", "birthDate", "increaseDate", "releaseDate", "endDate", "noticeDate"];
 const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage"];
 
 export function normalizeDigits(value: unknown) {
@@ -239,17 +267,7 @@ function isValidDate(value: string) {
 
 export function validateRecord(record: PersonRecord, template: TemplateId = "s1"): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  for (const key of REQUIRED_FIELDS[template]) {
-    if (!record[key].trim()) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: حقل مطلوب` });
-  }
-  for (const key of digitsOnlyFields) {
-    const value = record[key].trim();
-    if (value && !/^\d+$/.test(normalizeDigits(value))) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: استخدم أرقامًا فقط` });
-  }
-  if (record.nationalId && normalizeDigits(record.nationalId).length !== 14) issues.push({ key: "nationalId", message: "الرقم القومي: يجب أن يتكون من 14 رقمًا" });
-  if (record.applicantNationalId && normalizeDigits(record.applicantNationalId).length !== 14) issues.push({ key: "applicantNationalId", message: "الرقم القومي لمقدم الطلب: يجب أن يتكون من 14 رقمًا" });
-  if (record.phone && normalizeDigits(record.phone).length !== 11) issues.push({ key: "phone", message: "التليفون: يجب أن يتكون من 11 رقمًا" });
-  if (record.applicantPhone && normalizeDigits(record.applicantPhone).length !== 11) issues.push({ key: "applicantPhone", message: "تليفون مقدم الطلب: يجب أن يتكون من 11 رقمًا" });
+  // All fields are optional. Validate only supplied values.
   for (const key of dateFields) {
     const value = record[key].trim();
     if (value && !isValidDate(value)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: تاريخ غير صحيح` });
@@ -258,15 +276,7 @@ export function validateRecord(record: PersonRecord, template: TemplateId = "s1"
     const value = normalizeDigits(record[key]).replace(",", ".");
     if (value && (!/^\d+(\.\d{1,2})?$/.test(value) || Number(value) < 0)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: قيمة رقمية غير صحيحة` });
   }
-  if (template === "s2") {
-    for (const key of ["basicWage", "totalWage"] as const) {
-      const value = normalizeDigits(record[key]);
-      if (value && !/^\d+$/.test(value)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: يجب إدخال أرقام صحيحة فقط` });
-    }
-  }
   if (record.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.email)) issues.push({ key: "email", message: "البريد الإلكتروني: صيغة غير صحيحة" });
-  if (record.startDate && record.birthDate && record.startDate < record.birthDate) issues.push({ key: "startDate", message: "تاريخ بدء الاشتراك يسبق تاريخ الميلاد" });
-  if (record.endDate && record.startDate && record.endDate < record.startDate) issues.push({ key: "endDate", message: "تاريخ انتهاء الاشتراك يسبق تاريخ البدء" });
   return issues;
 }
 
@@ -275,7 +285,7 @@ export function relevantFieldCount(template: TemplateId = "s1") {
 }
 
 export function recordStatus(record: PersonRecord, template: TemplateId = "s1"): RecordStatus {
-  const filled = REQUIRED_FIELDS[template].filter((key) => record[key].trim()).length;
+  const filled = filledCount(record);
   if (filled === 0) return "مسودة";
   if (validateRecord(record, template).length === 0) return "جاهز";
   return "ناقص";
@@ -293,6 +303,17 @@ function normalizeKey(value: unknown) {
 }
 
 const aliases: Record<keyof PersonRecord, string[]> = {
+  hireDate: ["تاريخ الالتحاق (س2) (DD/MM/YYYY)", "hireDate"],
+  receiptNumber: ["رقم وصل الخطاب المسجل بعلم الوصول (س6)", "receiptNumber"],
+  receiptDate: ["تاريخ وصل الخطاب المسجل (س6) (DD/MM/YYYY)", "receiptDate"],
+  insuredSignDate: ["تاريخ توقيع المؤمن عليه (س6) (DD/MM/YYYY)", "insuredSignDate"],
+  managerSignDate: ["تاريخ توقيع المدير المسؤول (س6) (DD/MM/YYYY)", "managerSignDate"],
+  signatureVerifier: ["اسم القائم بمطابقة التوقيع (س6)", "signatureVerifier"],
+  disputeManagerSignDate: ["تاريخ توقيع المدير المسؤول في حالة النزاع (س6) (DD/MM/YYYY)", "disputeManagerSignDate"],
+  disputeInsuredSignDate: ["تاريخ توقيع المؤمن عليه في حالة النزاع (س6) (DD/MM/YYYY)", "disputeInsuredSignDate"],
+  applicantSignDate: ["تاريخ توقيع مقدم الطلب (س6) (DD/MM/YYYY)", "applicantSignDate"],
+  signatureMatchDate: ["تاريخ مطابقة التوقيع (س1) (DD/MM/YYYY)", "signatureMatchDate"],
+
   id: ["id", "رقم"],
   insuredName: ["اسم المؤمن عليه", "الاسم", "اسم العامل", "insuredname", "name"],
   nationalId: ["الرقم القومي", "رقم قومي", "الرقم القومى", "nationalid", "national id"],

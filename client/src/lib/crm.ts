@@ -31,8 +31,7 @@ function insuranceSortValue(value: string) {
 }
 
 export function isS2CrmComplete(record: PersonRecord) {
-  return [record.insuranceNumber, record.insuredName, record.basicWage, record.totalWage]
-    .every((value) => value.trim().length > 0);
+  return Object.entries(record).some(([key, value]) => key !== "id" && value.trim().length > 0);
 }
 
 export function sortS2CrmRecords(records: PersonRecord[]) {
@@ -82,11 +81,12 @@ export async function createS2CrmWorkbook(records: PersonRecord[], partsBaseUrl:
     const row = 15 + index;
     xml = replaceCell(xml, `A${row}`, normalizeDigits(record.insuranceNumber).trim());
     xml = replaceCell(xml, `B${row}`, record.insuredName.trim());
-    xml = replaceCell(xml, `G${row}`, record.basicWage.trim(), true);
-    xml = replaceCell(xml, `H${row}`, record.totalWage.trim(), true);
+    xml = replaceCell(xml, `G${row}`, record.basicWage.trim(), Boolean(record.basicWage.trim()));
+    xml = replaceCell(xml, `H${row}`, record.totalWage.trim(), Boolean(record.totalWage.trim()));
   });
 
   zip.file(sheetPath, xml);
   return zip.generateAsync({ type: "blob", mimeType: XLSX_TYPE, compression: "DEFLATE" });
 }
+
 

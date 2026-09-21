@@ -69,7 +69,7 @@ const s6BoxCounts = new Map<string, number>([
   ["Text Field2", 2], ["Text Field3", 2], ["Text Field4", 4],
 ]);
 const checkboxBindings: Partial<Record<keyof PersonRecord, Record<string, string>>> = {
-  category: { "عاملين لدى الغير": "يرغلا ىدل ينلماع", "أصحاب أعمال": "لامعأ باحصأشنم ملهآت", "عمالة غير منتظمة": "زباخلماب ينلماعلا" },
+  category: { "عاملين لدى الغير": "يرغلا ىدل ينلماع", "أصحاب أعمال": "لامعأ باحصأشنم ملهآت", "العاملين بالمخابز": "زباخلماب ينلماعلا" },
   medicalExam: { "نعم": "ئادتبلاا بيطلا فشكلا ءافيتساي", "لا": "لا" },
   establishmentType: { "نمطي": "أشنلما عونةطنم :ي", "سيارة": "رايسة", "مركب صيد": "ديص بكرم", "مخابز بلدية": "ةيدلب زبامخ" },
 };
@@ -194,7 +194,7 @@ async function fillS2Page(records: PersonRecord[]) {
   const rowHeight = 16;
   records.slice(0, 11).forEach((record, index) => {
     const y = rowY - (index * rowHeight);
-    const date = formatDisplayDate(record.startDate).split("/");
+    const date = formatDisplayDate((record.hireDate || record.startDate)).split("/");
     overlays.push(
       { x: 610, y, width: 165, height: 14, value: record.insuranceNumber, boxCount: 9, baseline: 0.5 },
       { x: 479, y, width: 131, height: 14, value: record.insuredName, fontSize: 10.5, baseline: 0.5 },
@@ -304,6 +304,7 @@ function setMoneyFields(form: ReturnType<PDFDocument["getForm"]>, names: string[
   if (names[1]) setText(form, names[1], fraction.padEnd(2, "0").slice(0, 2), font, TextAlignment.Center);
 }
 function setCheckboxes(form: ReturnType<PDFDocument["getForm"]>, key: keyof PersonRecord, value: string) {
+  if (key === "category" && value === "أصحاب أعمال لهم منشآت") value = "أصحاب أعمال";
   for (const [label, fieldName] of Object.entries(checkboxBindings[key] ?? {})) {
     let checkbox;
     try { checkbox = form.getCheckBox(fieldName); } catch { throw new Error(`خانة اختيار PDF غير موجودة: ${fieldName}`); }
@@ -438,6 +439,35 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
     if (record.medicalExam) setCheckboxes(form, "medicalExam", record.medicalExam);
     if (record.establishmentType) setCheckboxes(form, "establishmentType", record.establishmentType);
   } else if (record.endDate) setDateFields(form, ["Text Field2", "Text Field3", "Text Field4"], record.endDate, arabicFont);
+  // These printed blanks have no native widgets. Add named fields on page 1
+  // so the same font, Arabic rendering and flattening pipeline fills them.
+  const extraFields: Array<[keyof PersonRecord, number, number, number, number]> = template === "s1"
+    ? [["releaseDate", 425, 142, 90, 15], ["signatureMatchDate", 120, 75, 100, 15]]
+    : [["receiptNumber", 195, 376, 335, 15], ["receiptDate", 90, 376, 110, 15],
+       ["insuredSignDate", 305, 507, 105, 15], ["managerSignDate", 20, 507, 105, 15],
+       ["signatureVerifier", 70, 480, 175, 15], ["disputeManagerSignDate", 18, 326, 110, 15],
+       ["disputeInsuredSignDate", 20, 221, 110, 15], ["applicantSignDate", 75, 117, 115, 15]];
+  if (template === "s1") {
+    const customChoices: Array<[keyof PersonRecord, number, number, number, number]> = [
+      ["category", 50, 840, 300, 16], ["medicalExam", 40, 453, 260, 16], ["establishmentType", 30, 384, 165, 16],
+    ];
+    for (const item of customChoices) {
+      const [key] = item;
+      const value = key === "category" && record[key] === "أصحاب أعمال لهم منشآت" ? "أصحاب أعمال" : record[key];
+      if (value && !(value in (checkboxBindings[key] ?? {}))) extraFields.push(item);
+    }
+  }
+  for (const [key, x, y, width, height] of extraFields) {
+    if (!record[key]) continue;
+    const name = `optional_${key}`;
+    const field = form.createTextField(name);
+    field.addToPage(pdfDoc.getPages()[0], { x, y, width, height, borderWidth: 0, font: arabicFont });
+    setText(form, name, key.endsWith("Date") ? formatDisplayDate(record[key]) : record[key], arabicFont);
+    if (key.endsWith("Date")) {
+      field.setFontSize(9);
+      field.updateAppearances(arabicFont);
+    }
+  }
   const baked = await bakeFormText(pdfDoc, form, arabicFont, fontBytes, template === "s6" ? s6BoxCounts : s1BoxCounts);
   if (!baked) for (const field of form.getFields()) field.enableReadOnly();
   // Every populated text field is updated in setText. Avoid updating every
@@ -503,4 +533,5 @@ export async function createMergedPdf(records: PersonRecord[], template: Templat
   }
   return merged.save({ useObjectStreams: false });
 }
+
 

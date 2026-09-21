@@ -25,6 +25,29 @@ const record = {
 };
 
 describe("official PDF field maps", () => {
+  it("exports partial and empty forms without required-data errors", async () => {
+    for (const template of ["s1", "s2", "s6"] as const) {
+      const pdf = await PDFDocument.load(await fillPdf(makeEmptyRecord(), template));
+      expect(pdf.getPageCount()).toBe(template === "s2" ? 1 : 2);
+    }
+  });
+  it("fills the approved additional S1 and S6 destinations", async () => {
+    const extra = { ...makeEmptyRecord(), releaseDate: "2026-09-21", signatureMatchDate: "2026-09-22",
+      receiptNumber: "12345", receiptDate: "2026-09-23", insuredSignDate: "2026-09-24",
+      managerSignDate: "2026-09-25", signatureVerifier: "اسم المطابق", disputeManagerSignDate: "2026-09-26",
+      disputeInsuredSignDate: "2026-09-27", applicantSignDate: "2026-09-28", category: "العاملين بالمخابز" };
+    const s1Bytes = await fillPdf(extra, "s1");
+    const s1 = (await PDFDocument.load(s1Bytes)).getForm();
+    expect(s1.getTextField("optional_releaseDate").getText()).toBe("21/09/2026");
+    expect(s1.getTextField("optional_signatureMatchDate").getText()).toBe("22/09/2026");
+    expect(s1.getCheckBox("زباخلماب ينلماعلا").isChecked()).toBe(true);
+    const s6Bytes = await fillPdf(extra, "s6");
+    const s6 = (await PDFDocument.load(s6Bytes)).getForm();
+    for (const key of ["receiptNumber", "receiptDate", "insuredSignDate", "managerSignDate", "signatureVerifier", "disputeManagerSignDate", "disputeInsuredSignDate", "applicantSignDate"] as const) {
+      const expected = key.endsWith("Date") ? extra[key].split("-").reverse().join("/") : extra[key];
+      expect(s6.getTextField(`optional_${key}`).getText()).toBe(expected);
+    }
+  });
   it("orders complete Arabic phrases correctly for PDF appearance streams", () => {
     expect(toPdfText("اسم المؤمن عليه")).toBe("ﻪﻴﻠﻋ ﻦﻣﺆﻤﻟﺍ ﻢﺳﺍ");
     expect(toPdfText("محمد 2026")).toContain("2026");
@@ -59,7 +82,7 @@ describe("official PDF field maps", () => {
     expect(form.getTextField("Text Field2").getText()).toBe("21");
     expect(form.getTextField("Text Field3").getText()).toBe("07");
     expect(form.getTextField("Text Field4").getText()).toBe("2025");
-    expect(form.getTextField("Text Field6").getText()).toBe(record.address);
+    expect(form.getTextField("Text Field6").getText()).toBe("1 شارع النيل - القاهرة");
     expect(form.getTextField(":نييمأتلا اهمقر").getText()).toBe(record.establishmentNumber);
     expect(form.getTextField("ا: هيلع نمؤلما مــــــــس---------------------------------------:نييمأتلا همقر").getText()).toBe(record.insuranceNumber);
   });
@@ -80,4 +103,5 @@ describe("official PDF field maps", () => {
     expect(merged.getPageCount()).toBe(2);
   });
 });
+
 
