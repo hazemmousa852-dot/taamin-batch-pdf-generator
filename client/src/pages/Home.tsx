@@ -66,7 +66,7 @@ import {
 
 const ASSET_BASE = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const assetUrl = (name: string) => `${ASSET_BASE}assets/${name}`;
-const MARK_URL = assetUrl("taamin-mark.webp");
+const MARK_URL = "https://hazemmousa852-dot.github.io/marjaak-alqanuni/brand/logo-512.png";
 const PAPER_URL = assetUrl("taamin-paper-surface.webp");
 const RIBBON_URL = assetUrl("taamin-spreadsheet-ribbon.webp");
 const FORM_URL = assetUrl("taamin-form-preview.webp");
@@ -563,7 +563,7 @@ export default function Home() {
           <button className="mobile-menu" onClick={() => setSidebarOpen((open) => !open)} aria-label="فتح القائمة">
             <Menu size={18} />
           </button>
-          <img src={MARK_URL} alt="" className="brand-mark" />
+          <img src={MARK_URL} alt="شعار حازم موسى" width={48} height={48} className="brand-mark hm-tool-logo hm-tool-logo--compact" />
           <div>
             <p className="brand-name">نموذجي</p>
             <p className="brand-caption">تجهيز نماذج التأمينات</p>
@@ -730,4 +730,5 @@ export default function Home() {
     </div>
   );
 }
+
 
