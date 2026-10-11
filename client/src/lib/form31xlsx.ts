@@ -15,12 +15,60 @@ const LIST_RULES: Array<{ key: string; values: string[] }> = [
   { key: "treatmentPlace", values: ["داخل البلاد", "خارج البلاد"] },
 ];
 
+const FREEZE_PANE =
+  '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>';
+
+/**
+ * عناصر المخطط (OOXML) التي يجب أن يأتي ترتيبها **بعد** <dataValidations>
+ * — نستخدم أول عنصر ظاهر منها كمرساة نُدرج القوائم قبله.
+ */
+const AFTER_DATA_VALIDATIONS =
+  /<(hyperlinks|printOptions|pageMargins|pageSetup|headerFooter|rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|picture|oleObjects|controls|tableParts|extLst)(?=[\s/>])/;
+
 function escapeXml(value: string) {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/**
+ * يثبّت صف العناوين بإدراج <pane> **كأول عنصر داخل <sheetView> نفسها**
+ * (SheetJS يكتب الوسم مغلقًا ذاتيًا: <sheetView .../>). لا بد من ذلك لأن
+ * <pane> ليس عنصرًا مسموحًا به بين أبناء <sheetViews>، وExcel يرفض
+ * الملف بالكامل لو وُضع هناك.
+ */
+function addFreezePane(xml: string) {
+  if (xml.includes("<pane ")) return xml;
+
+  let updated = xml.replace(
+    /<sheetView(?=[\s/>])([^>]*?)(\/?)>/,
+    (_match, attrs: string, selfClosing: string) =>
+      selfClosing
+        ? `<sheetView${attrs}>${FREEZE_PANE}</sheetView>`
+        : `<sheetView${attrs}>${FREEZE_PANE}`,
+  );
+
+  // احتياطي: لو كان <sheetViews/> مغلقًا ذاتيًا بدون أي <sheetView>
+  if (!updated.includes("<pane ")) {
+    updated = updated.replace(
+      /<sheetViews\s*\/>/,
+      `<sheetViews><sheetView workbookViewId="0">${FREEZE_PANE}</sheetView></sheetViews>`,
+    );
+  }
+  return updated;
+}
+
+/**
+ * يُدرج <dataValidations> في موضعها الصحيح حسب مخطط OOXML:
+ * بعد </sheetData> وقبل أول عنصر يأتي بعدها في الترتيب القياسي.
+ */
+function addListValidations(xml: string, validationsXml: string) {
+  if (AFTER_DATA_VALIDATIONS.test(xml)) {
+    return xml.replace(AFTER_DATA_VALIDATIONS, `${validationsXml}<$1`);
+  }
+  return xml.replace("</worksheet>", `${validationsXml}</worksheet>`);
 }
 
 /** يثبّت صف العناوين ويضيف القوائم المنسدلة إلى ورقة القالب. */
@@ -32,8 +80,7 @@ async function decorateSheet(bytes: ArrayBuffer) {
   if (!entry) return bytes;
   let xml = await entry.async("string");
 
-  xml = xml.replace(/<sheetView([^>]*)>/, (opening) =>
-    xml.includes("<pane ") ? opening : `${opening}<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>`);
+  xml = addFreezePane(xml);
 
   if (!xml.includes("<dataValidations")) {
     const validations = LIST_RULES.flatMap((rule) => {
@@ -46,7 +93,8 @@ async function decorateSheet(bytes: ArrayBuffer) {
       ];
     });
     if (validations.length) {
-      xml = xml.replace("</worksheet>", `<dataValidations count="${validations.length}">${validations.join("")}</dataValidations></worksheet>`);
+      const block = `<dataValidations count="${validations.length}">${validations.join("")}</dataValidations>`;
+      xml = addListValidations(xml, block);
     }
   }
   zip.file(sheetPath, xml);
