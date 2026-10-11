@@ -327,8 +327,8 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
   .summary-strip { overflow-x: auto; justify-content: flex-start; gap: 28px; margin-bottom: 40px; }
   .summary-hint, .summary-divider { display: none; }
   .editor-layout { grid-template-columns: 1fr; margin-top: 42px; }
-  .preview-panel { grid-row: 1; }
-  .editor-panel { grid-row: 2; }
+  .preview-panel { grid-row: 2; }
+  .editor-panel { grid-row: 1; }
   .preview-paper { max-width: 340px; margin: 0 auto; }
   .preview-data { font-size: 8px; }
   .upload-card { grid-template-columns: 1fr; }
@@ -402,3 +402,8 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
 .field-shell [aria-invalid="true"] { border-color: #b42318; box-shadow: 0 0 0 1px rgb(180 35 24 / 12%); }
 .field-error { display: block; margin-top: 0.35rem; color: #b42318; font-size: 0.75rem; line-height: 1.5; }
 
+
+/* Keep manual entry reachable from every record, including mobile cards. */
+#record-editor { scroll-margin-top: 180px; }
+.record-edit-button { display: block; margin-top: 8px; padding: 6px 10px; border: 1px solid #c5793b; border-radius: 6px; background: #fff8ee; color: #704019; font-size: 12px; cursor: pointer; }
+.record-edit-button:focus-visible { outline: 2px solid #26322c; outline-offset: 3px; }
