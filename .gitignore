@@ -111,3 +111,7 @@ temp/
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
 .project-config.json
+
+# مخرجات سكربتات التحقق (لا تُرفع)
+form31-template-filled.xlsx
+form31-calibration.png
