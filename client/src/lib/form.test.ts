@@ -38,6 +38,40 @@ describe("Arabic form validation", () => {
     expect(validateRecord(value, "s6")).toEqual([]);
   });
   it("normalizes Arabic and Persian digits", () => expect(normalizeDigits("١٢٣۴۵")).toBe("12345"));
+  it("imports the نموذج 31 sheet columns with their exact Excel headings", () => {
+    const record = mapExcelRow({
+      "اسم المؤمن عليه": "محمد أحمد",
+      "الرقم القومي": "29501010123456",
+      "الرقم التأميني": "001234567",
+      "تاريخ الإصابة (DD/MM/YYYY)": "14/09/2026",
+      "هل يوجد مرافق": "نعم",
+      "تاريخ بداية الإجازة المرضي (DD/MM/YYYY)": "15/09/2026",
+      "تاريخ نهاية الإجازة المرضي (DD/MM/YYYY)": "29/09/2026",
+      "هل توجد مصاريف انتقال": "لا",
+      "العلاج يتم داخل أم خارج البلاد": "داخل البلاد",
+      "أجر الاشتراك الشهري للمصاب": "4500",
+      "طريقة أداء الأجر": "بالحساب البنكي",
+      "بيانات أخرى 1": "ملاحظة أولى",
+      "تحريرًا في (DD/MM/YYYY)": "01/10/2026",
+    });
+    expect(record.injuryDate).toBe("2026-09-14");
+    expect(record.sickLeaveStartDate).toBe("2026-09-15");
+    expect(record.sickLeaveEndDate).toBe("2026-09-29");
+    expect(record.releaseDate).toBe("2026-10-01");
+    expect(record.companion).toBe("نعم");
+    expect(record.travelExpenses).toBe("لا");
+    expect(record.treatmentPlace).toBe("داخل البلاد");
+    expect(record.monthlyWage).toBe("4500");
+    expect(record.otherLine1).toBe("ملاحظة أولى");
+    expect(validateRecord(record, "s31")).toEqual([]);
+  });
+
+  it("accepts blank and partial نموذج 31 records", () => {
+    expect(validateRecord(makeEmptyRecord(), "s31")).toEqual([]);
+    const partial = { ...makeEmptyRecord(), insuredName: "اسم فقط", sickLeaveStartDate: "not-a-date" };
+    expect(validateRecord(partial, "s31")).toHaveLength(1);
+  });
+
   it("accepts a complete S1 record", () => {
     const record = validRecord();
     expect(validateRecord(record, "s1")).toEqual([]);
@@ -68,4 +102,3 @@ describe("Arabic form validation", () => {
     expect(validateRecord({ ...record, basicWage: "2500" }, "s2")).toEqual([]);
   });
 });
-

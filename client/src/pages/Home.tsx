@@ -49,9 +49,11 @@ import {
   safeFileName,
 } from "@/lib/pdf";
 import { createS2CrmWorkbook, isS2CrmComplete, sortS2CrmRecords } from "@/lib/crm";
+import { buildForm31Workbook } from "@/lib/form31xlsx";
 import {
   EXCEL_HEADERS,
   CODED_OPTIONS,
+  FORM31_SHEET_NAME,
   filledCount,
   makeEmptyRecord,
   mapExcelRow,
@@ -71,6 +73,7 @@ const PAPER_URL = assetUrl("taamin-paper-surface.webp");
 const RIBBON_URL = assetUrl("taamin-spreadsheet-ribbon.webp");
 const FORM_URL = assetUrl("taamin-form-preview.webp");
 const S6_PREVIEW_URL = assetUrl("taamin-s6-preview.png");
+const FORM31_PREVIEW_URL = assetUrl("taamin-form31-preview.png");
 GlobalWorkerOptions.workerSrc = workerSrc;
 
 type EditableKey = Exclude<keyof PersonRecord, "id">;
@@ -93,6 +96,8 @@ type FieldGroup = {
   fields: FieldSpec[];
 };
 
+// ملاحظة: رقم القسم الظاهر في الواجهة يُحسب تلقائيًا حسب الأقسام التي تظهر في
+// القالب المختار (انظر availableGroups)، وقيم number هنا للتوثيق فقط.
 const fieldGroups: FieldGroup[] = [
   {
     id: "identity",
@@ -107,6 +112,26 @@ const fieldGroups: FieldGroup[] = [
       { key: "birthDate", label: "تاريخ الميلاد", placeholder: "يوم / شهر / سنة", type: "date" },
       { key: "gender", label: "النوع", placeholder: "ذكر / أنثى" },
       { key: "category", label: "الفئة", placeholder: "اختر الفئة" },
+    ],
+  },
+  {
+    id: "form31",
+    number: "06",
+    title: "بيانات الإصابة / المرض",
+    note: "حقول نموذج 31: تواريخ الإصابة والإجازة المرضية والبيانات التكميلية",
+    icon: ClipboardList,
+    fields: [
+      { key: "injuryDate", label: "تاريخ الإصابة", placeholder: "في حالات الإصابة فقط", type: "date" },
+      { key: "companion", label: "هل يوجد مرافق", placeholder: "اختر الإجابة" },
+      { key: "sickLeaveStartDate", label: "تاريخ بداية الإجازة المرضي", placeholder: "يوم/شهر/سنة", type: "date" },
+      { key: "sickLeaveEndDate", label: "تاريخ نهاية الإجازة المرضي", placeholder: "يوم/شهر/سنة", type: "date" },
+      { key: "travelExpenses", label: "هل توجد مصاريف انتقال", placeholder: "اختر الإجابة" },
+      { key: "treatmentPlace", label: "العلاج يتم داخل أم خارج البلاد", placeholder: "اختر الإجابة" },
+      { key: "wagePaymentMethod", label: "طريقة أداء الأجر", placeholder: "مثال: بالحساب البنكي / نقدًا" },
+      { key: "otherLine1", label: "بيانات أخرى 1", placeholder: "اختياري", wide: true },
+      { key: "otherLine2", label: "بيانات أخرى 2", placeholder: "اختياري", wide: true },
+      { key: "otherLine3", label: "بيانات أخرى 3", placeholder: "اختياري", wide: true },
+      { key: "signatureName", label: "الاسم أسفل توقيع مقدم الطلب", placeholder: "اتركه فارغًا لاستخدام اسم مقدم الطلب", wide: true },
     ],
   },
   {
@@ -143,6 +168,7 @@ const fieldGroups: FieldGroup[] = [
       { key: "basicWage", label: "أجر / دخل الاشتراك", placeholder: "0.00", type: "number" },
       { key: "variableWage", label: "الأجر المتغير", placeholder: "0.00", type: "number" },
       { key: "totalWage", label: "الأجر الشامل", placeholder: "0.00", type: "number" },
+      { key: "monthlyWage", label: "أجر الاشتراك الشهري للمصاب (نموذج 31)", placeholder: "0.00", type: "number" },
       { key: "increaseDate", label: "تاريخ بداية العجز (خانة مستقلة - اختياري)", placeholder: "يوم/شهر/سنة، مثال 31/08/2026", type: "date" },
       { key: "increasePercent", label: "نسبة العجز (اختياري)", placeholder: "اتركها فارغة إن لم توجد", type: "number" },
     ],
@@ -201,6 +227,12 @@ const fieldGroups: FieldGroup[] = [
 
 // Only show fields that have a verified destination in the selected official PDF.
 // This prevents users from entering data that would never appear in the export.
+/** ترتيب أقسام الإدخال الظاهرة في كل قالب (الأقسام غير المذكورة تبقى بترتيبها الأصلي). */
+const TEMPLATE_GROUP_ORDER: Partial<Record<TemplateId, string[]>> = {
+  // في نموذج 31 تأتي بيانات مقدم الطلب قبل بيانات العمل والأجر، مطابقةً لترتيب النموذج المطبوع
+  s31: ["identity", "form31", "s6", "work", "wage", "address"],
+};
+
 const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
   s1: new Set<EditableKey>([
     "releaseDate", "signatureMatchDate", "insuredName", "nationalId", "insuranceNumber", "category", "country", "establishmentName",
@@ -211,6 +243,14 @@ const TEMPLATE_FIELDS: Record<TemplateId, Set<EditableKey>> = {
   s6: new Set<EditableKey>(["receiptNumber","receiptDate","insuredSignDate","managerSignDate","signatureVerifier","disputeManagerSignDate","disputeInsuredSignDate","applicantSignDate",
     "insuredName", "nationalId", "insuranceNumber", "establishmentName", "establishmentNumber", "office",
     "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId", "endDate", "endReason", "address",
+  ]),
+  s31: new Set<EditableKey>([
+    "insuredName", "nationalId", "insuranceNumber",
+    "injuryDate", "companion", "sickLeaveStartDate", "sickLeaveEndDate",
+    "travelExpenses", "treatmentPlace", "wagePaymentMethod", "monthlyWage",
+    "otherLine1", "otherLine2", "otherLine3", "signatureName", "releaseDate",
+    "office", "establishmentName", "establishmentNumber",
+    "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
   ]),
   s2: new Set<EditableKey>(["hireDate",
     "office", "establishmentNumber", "noticeDate", "applicantName", "applicantRole", "applicantNationalId",
@@ -234,6 +274,9 @@ const plainOptions = (values: string[]): UiOption[] => values.map((value) => ({ 
 const SELECT_OPTIONS: Partial<Record<EditableKey, UiOption[]>> = {
   category: plainOptions(["عاملين لدى الغير", "أصحاب أعمال لهم منشآت", "العاملين بالمخابز"]),
   medicalExam: plainOptions(["نعم", "لا"]),
+  companion: plainOptions(["نعم", "لا"]),
+  travelExpenses: plainOptions(["نعم", "لا"]),
+  treatmentPlace: plainOptions(["داخل البلاد", "خارج البلاد"]),
   establishmentType: plainOptions(["نمطي", "سيارة", "مركب صيد", "مخابز بلدية"]),
   gender: plainOptions(["ذكر", "أنثى"]),
   sector: CODED_OPTIONS.sector,
@@ -306,8 +349,11 @@ export default function Home() {
   const [template, setTemplate] = useState<TemplateId>("s1");
   const [sharedRecords, setSharedRecords] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
   const [s2Records, setS2Records] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
-  const records = template === "s2" ? s2Records : sharedRecords;
-  const setRecords = template === "s2" ? setS2Records : setSharedRecords;
+  const [form31Records, setForm31Records] = useState<PersonRecord[]>(() => [makeEmptyRecord()]);
+  // نموذج 31 له جدول سجلات مستقل عن س1/س6، تمامًا كما هو الحال في س2.
+  const isDedicatedRecords = template === "s2" || template === "s31";
+  const records = template === "s2" ? s2Records : template === "s31" ? form31Records : sharedRecords;
+  const setRecords = template === "s2" ? setS2Records : template === "s31" ? setForm31Records : setSharedRecords;
   const [activeId, setActiveId] = useState(() => sharedRecords[0].id);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(sharedRecords.map((record) => record.id)));
   const [mode, setMode] = useState<Mode>("manual");
@@ -355,11 +401,20 @@ export default function Home() {
   const issueByField = useMemo(() => new Map(activeIssues.map((issue) => [issue.key, issue.message])), [activeIssues]);
   const availableGroups = useMemo(() => fieldGroups
     .map((group) => ({ ...group, fields: group.fields.filter((field) => TEMPLATE_FIELDS[template].has(field.key)) }))
-    .filter((group) => group.fields.length > 0), [template]);
+    .filter((group) => group.fields.length > 0)
+    // ترتيب الأقسام ثم ترقيمها متسلسلًا حسب ما يظهر فعلًا في القالب المختار
+    .sort((left, right) => {
+      const order = TEMPLATE_GROUP_ORDER[template];
+      if (!order) return 0;
+      const leftIndex = order.indexOf(left.id);
+      const rightIndex = order.indexOf(right.id);
+      return (leftIndex < 0 ? order.length : leftIndex) - (rightIndex < 0 ? order.length : rightIndex);
+    })
+    .map((group, index) => ({ ...group, number: String(index + 1).padStart(2, "0") })), [template]);
   const incompleteRecords = useMemo(() => records.filter((record) => validateRecord(record, template).length > 0), [records, template]);
   const visibleRecords = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("ar-EG");
-    const scoped = template === "s2" && showIncompleteOnly ? incompleteRecords : records;
+    const scoped = isDedicatedRecords && showIncompleteOnly ? incompleteRecords : records;
     if (!query) return scoped;
     return scoped.filter((record) =>
       [record.insuredName, record.nationalId, record.establishmentName]
@@ -367,9 +422,9 @@ export default function Home() {
         .toLocaleLowerCase("ar-EG")
         .includes(query),
     );
-  }, [records, search, template, showIncompleteOnly, incompleteRecords]);
+  }, [records, search, isDedicatedRecords, showIncompleteOnly, incompleteRecords]);
   function changeTemplate(next: TemplateId) {
-    const targetRecords = next === "s2" ? s2Records : sharedRecords;
+    const targetRecords = next === "s2" ? s2Records : next === "s31" ? form31Records : sharedRecords;
     setTemplate(next);
     setActiveId(targetRecords[0].id);
     setSelectedIds(new Set(targetRecords.map((record) => record.id)));
@@ -414,9 +469,26 @@ export default function Home() {
     setIsProcessing(true);
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      const peopleSheet = workbook.Sheets["بيانات المؤمن عليهم"] ?? workbook.Sheets[workbook.SheetNames.at(-1)!];
+      // نموذج 31 يقرأ من ورقته الخاصة، وباقي النماذج تقرأ من ورقة المؤمن عليهم.
+      // وإن كانت الورقة المفضّلة فارغة نجرّب الورقة الأخرى قبل إعلان الفشل.
+      const sheetCandidates = template === "s31"
+        ? [FORM31_SHEET_NAME, "بيانات المؤمن عليهم"]
+        : ["بيانات المؤمن عليهم", FORM31_SHEET_NAME];
+      let rows: Array<Record<string, unknown>> = [];
+      let foundSheet = false;
+      for (const name of sheetCandidates) {
+        const sheet = workbook.Sheets[name];
+        if (!sheet) continue;
+        const candidateRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+        rows = candidateRows;
+        foundSheet = true;
+        if (candidateRows.length) break;
+      }
+      if (!foundSheet) {
+        const fallback = workbook.Sheets[workbook.SheetNames.at(-1)!];
+        rows = fallback ? XLSX.utils.sheet_to_json<Record<string, unknown>>(fallback, { defval: "" }) : [];
+      }
       const sharedSheet = workbook.Sheets["البيانات الثابتة"] ?? workbook.Sheets["بيانات المنشأة والمفوض"];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(peopleSheet, { defval: "" });
       const sharedRow = sharedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sharedSheet, { defval: "" })[0] : undefined;
       const sharedRecord = sharedRow ? mapExcelRow(sharedRow) : undefined;
       const imported = rows.flatMap((row) => {
@@ -436,8 +508,8 @@ export default function Home() {
       setRecords(imported);
       setSelectedIds(new Set(imported.map((record) => record.id)));
       const firstIncomplete = imported.find((record) => validateRecord(record, template).length > 0);
-      setActiveId((template === "s2" && firstIncomplete ? firstIncomplete : imported[0]).id);
-      setShowIncompleteOnly(template === "s2" && Boolean(firstIncomplete));
+      setActiveId((isDedicatedRecords && firstIncomplete ? firstIncomplete : imported[0]).id);
+      setShowIncompleteOnly(isDedicatedRecords && Boolean(firstIncomplete));
       setMode("bulk");
       const invalidCount = imported.filter((record) => validateRecord(record, template).length > 0).length;
       toast.success(`تم استيراد ${imported.length} سجل`, { description: invalidCount ? `${invalidCount} سجل يحتاج مراجعة قبل التصدير.` : "كل السجلات جاهزة للتصدير." });
@@ -456,6 +528,20 @@ export default function Home() {
       const bytes = Uint8Array.from(atob((await response.text()).trim()), (char) => char.charCodeAt(0));
       downloadBlob(bytes, "قالب-التأمينات-مرن.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       toast.success("تم تنزيل القالب المرن — جميع البيانات اختيارية");
+    } catch { toast.error("تعذر تنزيل القالب؛ حاول مرة أخرى"); }
+  }
+
+  async function downloadForm31Template() {
+    try {
+      // نفس القالب المرن (أوراق المنشأة والمفوض + قوائم الأكواد) مع إضافة ورقة «نموذج 31»
+      const response = await fetch(assetUrl("taamin-flexible-template.b64"));
+      if (!response.ok) throw new Error("تعذر تحميل القالب");
+      const bytes = Uint8Array.from(atob((await response.text()).trim()), (char) => char.charCodeAt(0));
+      const workbook = await buildForm31Workbook(bytes);
+      downloadBlob(workbook, "قالب-نموذج-31.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      toast.success("تم تنزيل قالب نموذج 31", {
+        description: "املأ ورقة «بيانات المنشأة والمفوض» مرة واحدة، ثم صفًا لكل إصابة أو إجازة مرضية في ورقة «نموذج 31».",
+      });
     } catch { toast.error("تعذر تنزيل القالب؛ حاول مرة أخرى"); }
   }
 
@@ -590,7 +676,7 @@ export default function Home() {
             <div className="sidebar-guide" aria-label="دليل الاستخدام السريع">
               <p className="guide-title"><CircleHelp size={15} /> شرح سريع</p>
               <ol>
-                <li><b>1</b><span>اختر س1 أو س2 أو س6 من أعلى الصفحة.</span></li>
+                <li><b>1</b><span>اختر س1 أو س2 أو س6 أو نموذج 31 من أعلى الصفحة.</span></li>
                 <li><b>2</b><span>نزّل قالب Excel واملأ البيانات.</span></li>
                 <li><b>3</b><span>ارفع الملف وراجع البيانات المدخلة.</span></li>
                 <li><b>4</b><span>نزّل ملف PDF الجاهز للطباعة.</span></li>
@@ -606,11 +692,18 @@ export default function Home() {
           <section className="page-intro">
             <div className="intro-copy">
               <div className="breadcrumb"><span>لوحة النماذج</span><ArrowLeft size={13} /><strong>{TEMPLATE_LABELS[template]}</strong></div>
-              <p className="eyebrow"><span className="eyebrow-line" /> {template === "s6" ? "إخطار انتهاء اشتراك مؤمن عليه" : template === "s2" ? "تحديث بيانات أجور المؤمن عليهم" : "نموذج الاشتراك المؤمن عليه"}</p>
+              <p className="eyebrow"><span className="eyebrow-line" /> {template === "s6" ? "إخطار انتهاء اشتراك مؤمن عليه" : template === "s2" ? "تحديث بيانات أجور المؤمن عليهم" : template === "s31" ? "طلب صرف تعويض الأجر ومصاريف الانتقال" : "نموذج الاشتراك المؤمن عليه"}</p>
               <h1>من جدول واحد<br /><em>إلى نماذج جاهزة.</em></h1>
-              <p className="intro-description">اكتب بيانات شخص واحد أو ارفع ملف Excel كاملًا. راجع كل سجل، ثم احصل على ملفات PDF مرتبة وجاهزة للطباعة.</p>
+              <p className="intro-description">{template === "s31"
+                ? "لحالة واحدة: أدخل البيانات يدويًا ونزّل نموذج 31 PDF. لعدة حالات: نزّل قالب Excel واملأ صفًا لكل حالة، وسيُقرأ الشيت ويُعبّأ تلقائيًا، ثم نزّل نموذجًا منفصلًا لكل سجل."
+                : "اكتب بيانات شخص واحد أو ارفع ملف Excel كاملًا. راجع كل سجل، ثم احصل على ملفات PDF مرتبة وجاهزة للطباعة."}</p>
               <div className="intro-actions">
-                {template === "s2" ? <>
+                {template === "s31" ? <>
+                  <Button variant="outline" className="button-outline workflow-action" onClick={downloadForm31Template}><span className="workflow-action-number">1</span><Download size={16} /> تنزيل قالب Excel (نموذج 31)</Button>
+                  <Button variant="outline" className="button-outline workflow-action" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}><span className="workflow-action-number">2</span><CloudUpload size={16} /> رفع ملف Excel</Button>
+                  <Button className="button-primary workflow-action" onClick={downloadAll} disabled={isProcessing}><span className="workflow-action-number">3</span>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل PDF مجمّع</Button>
+                  <Button variant="outline" className="button-outline workflow-action" onClick={downloadSeparateZip} disabled={isProcessing}><span className="workflow-action-number">4</span><Download size={16} /> ZIP ملفات PDF منفصلة</Button>
+                </> : template === "s2" ? <>
                   <Button variant="outline" className="button-outline workflow-action" onClick={downloadTemplate}><span className="workflow-action-number">1</span><Download size={16} /> تنزيل قالب Excel</Button>
                   <Button variant="outline" className="button-outline workflow-action" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}><span className="workflow-action-number">2</span><CloudUpload size={16} /> رفع ملف Excel</Button>
                   <Button className="button-primary workflow-action" onClick={downloadAll} disabled={isProcessing}><span className="workflow-action-number">3</span>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل ملف س2 PDF مجمّع</Button>
@@ -624,8 +717,8 @@ export default function Home() {
             </div>
             <div className="intro-visual">
               <img className="visual-paper" src={PAPER_URL} alt="" />
-              <div className="hero-form-artifact"><img src={template === "s6" ? S6_PREVIEW_URL : FORM_URL} alt="" /><span>{TEMPLATE_LABELS[template]}</span></div>
-              <div className="visual-overlay"><span>{template === "s6" ? "س6" : template === "s2" ? "س2" : "س1"}</span><b>{template === "s6" ? <>إخطار<br />اشتراك</> : template === "s2" ? <>تحديث<br />أجور</> : <>وثيقة<br />تأمين</>}</b><small>جاهز للطباعة</small></div>
+              <div className="hero-form-artifact"><img src={template === "s6" ? S6_PREVIEW_URL : template === "s31" ? FORM31_PREVIEW_URL : FORM_URL} alt="" /><span>{TEMPLATE_LABELS[template]}</span></div>
+              <div className="visual-overlay"><span>{template === "s6" ? "س6" : template === "s2" ? "س2" : template === "s31" ? "31" : "س1"}</span><b>{template === "s6" ? <>إخطار<br />اشتراك</> : template === "s2" ? <>تحديث<br />أجور</> : template === "s31" ? <>تعويض<br />الأجر</> : <>وثيقة<br />تأمين</>}</b><small>جاهز للطباعة</small></div>
               <div className="visual-ribbon"><FileSpreadsheet size={17} /><span>Excel → PDF</span></div>
               <div className="visual-stamp"><Check size={16} /> جاهز</div>
             </div>
@@ -642,12 +735,12 @@ export default function Home() {
 
           <section className="workbench-section registry-section">
             <div className="section-heading-row">
-              <div><p className="section-overline">مسار العمل <span>{template === "s2" ? "01 / 04" : "01 / 03"}</span></p><h2>{template === "s2" ? "ارفع بيانات س2" : "أدخل البيانات"}</h2></div>
+              <div><p className="section-overline">مسار العمل <span>{template === "s2" || template === "s31" ? "01 / 04" : "01 / 03"}</span></p><h2>{template === "s2" ? "ارفع بيانات س2" : template === "s31" ? "أدخل بيانات نموذج 31" : "أدخل البيانات"}</h2></div>
               <div className="heading-tools"><span className="template-pill"><FileText size={14} /> {TEMPLATE_LABELS[template]} <ChevronDown size={14} /></span><span className="autosave"><span /> حفظ تلقائي</span></div>
             </div>
 
             {template !== "s2" && <Card className="mode-card registry-card">
-              <div className="mode-copy"><div className="mode-icon"><ClipboardList size={18} /></div><div><h3>كيف تريد إدخال البيانات؟</h3><p>لعدة موظفين: استخدم Excel. لموظف واحد أو تعديل سريع: استخدم الإدخال اليدوي.</p></div></div>
+              <div className="mode-copy"><div className="mode-icon"><ClipboardList size={18} /></div><div><h3>{template === "s31" ? "حالة واحدة أم عدة حالات؟" : "كيف تريد إدخال البيانات؟"}</h3><p>{template === "s31" ? "لحالة إصابة أو إجازة مرضية واحدة: استخدم الإدخال اليدوي. لعدة حالات: ارفع ملف Excel وسيُعبّأ كل صف تلقائيًا." : "لعدة موظفين: استخدم Excel. لموظف واحد أو تعديل سريع: استخدم الإدخال اليدوي."}</p></div></div>
               <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)} className="mode-tabs">
                 <TabsList><TabsTrigger value="manual"><UserRound size={15} /> إدخال يدوي</TabsTrigger><TabsTrigger value="bulk"><UsersRound size={15} /> رفع دفعة Excel</TabsTrigger></TabsList>
               </Tabs>
@@ -656,8 +749,8 @@ export default function Home() {
             {template === "s2" || mode === "bulk" ? (
               <Card className="upload-card registry-card">
                 <div className="upload-art"><img src={RIBBON_URL} alt="" /><div className="upload-art-label"><FileSpreadsheet size={17} /><span>صفوف منظمة<br /><b>إلى ملفات</b></span></div></div>
-                <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>نقرأ بيانات المنشأة والمفوّض مرة واحدة، ثم ننشئ نموذجًا لكل صف في شيت المؤمن عليهم.</p></div><span className="supported-formats">.XLSX / .XLS</span></div>
-                  <div className="upload-actions"><Button className="button-primary" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <CloudUpload size={16} />} اختر ملف Excel</Button><button className="text-link" onClick={downloadTemplate}>نزّل قالب الأعمدة <ArrowLeft size={14} /></button></div>
+                <div className="upload-copy"><div className="upload-title-row"><div><h3>ارفع ملف البيانات</h3><p>{template === "s31" ? "نقرأ بيانات المنشأة والمفوض ومقدم الطلب مرة واحدة، ثم ننشئ نموذج 31 لكل صف في ورقة «نموذج 31»." : "نقرأ بيانات المنشأة والمفوّض مرة واحدة، ثم ننشئ نموذجًا لكل صف في شيت المؤمن عليهم."}</p></div><span className="supported-formats">.XLSX / .XLS</span></div>
+                  <div className="upload-actions"><Button className="button-primary" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <CloudUpload size={16} />} اختر ملف Excel</Button><button className="text-link" onClick={template === "s31" ? downloadForm31Template : downloadTemplate}>نزّل قالب الأعمدة <ArrowLeft size={14} /></button></div>
                   {fileName && <div className="uploaded-file"><FileSpreadsheet size={16} /><span>{fileName}</span><Check size={15} /></div>}
                   <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleExcel} aria-label="رفع ملف Excel" className="file-input-accessible" />
                 </div>
@@ -668,12 +761,12 @@ export default function Home() {
 
             <div className="records-toolbar">
               <div className="records-title"><UsersRound size={17} /><strong>سجل البيانات</strong><span>{records.length} صف</span></div>
-              <div className="records-actions"><div className="search-wrap"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الرقم..." /></div>{template === "s2" && <Button variant="outline" className="add-button" onClick={() => { const next = !showIncompleteOnly; setShowIncompleteOnly(next); if (next && incompleteRecords[0]) setActiveId(incompleteRecords[0].id); }}><ClipboardList size={15} /> {showIncompleteOnly ? "عرض كل الموظفين" : `بيانات ناقصة (${incompleteRecords.length})`}</Button>}<Button variant="outline" className="add-button" onClick={addRecord}><Plus size={15} /> إضافة سجل</Button></div>
+              <div className="records-actions"><div className="search-wrap"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الرقم..." /></div>{isDedicatedRecords && <Button variant="outline" className="add-button" onClick={() => { const next = !showIncompleteOnly; setShowIncompleteOnly(next); if (next && incompleteRecords[0]) setActiveId(incompleteRecords[0].id); }}><ClipboardList size={15} /> {showIncompleteOnly ? "عرض كل الموظفين" : `بيانات ناقصة (${incompleteRecords.length})`}</Button>}<Button variant="outline" className="add-button" onClick={addRecord}><Plus size={15} /> إضافة سجل</Button></div>
             </div>
 
             <div className="records-table-wrap registry-table">
               <table className="records-table">
-                <thead><tr><th className="check-cell"><input type="checkbox" checked={visibleRecords.length > 0 && visibleRecords.every((record) => selectedIds.has(record.id))} onChange={toggleAllVisible} aria-label="تحديد الكل" /></th><th>المؤمن عليه</th><th>الرقم القومي</th><th>اسم المنشأة</th><th>اكتمال البيانات</th><th>الحالة</th><th /></tr></thead>
+                <thead><tr><th className="check-cell"><input type="checkbox" checked={visibleRecords.length > 0 && visibleRecords.every((record) => selectedIds.has(record.id))} onChange={toggleAllVisible} aria-label="تحديد الكل" /></th><th>المؤمن عليه</th><th>الرقم القومي</th><th>{template === "s31" ? "تاريخ الإصابة" : "اسم المنشأة"}</th><th>اكتمال البيانات</th><th>الحالة</th><th /></tr></thead>
                 <tbody>
                   {visibleRecords.map((record, index) => {
                     const status = recordStatus(record, template);
@@ -681,7 +774,7 @@ export default function Home() {
                     return <tr key={record.id} className={isActive ? "record-row-active" : ""} onClick={() => setActiveId(record.id)}>
                       <td className="check-cell"><input type="checkbox" checked={selectedIds.has(record.id)} onChange={() => toggleRecordSelection(record.id)} onClick={(event) => event.stopPropagation()} aria-label={`تحديد ${record.insuredName || `السجل ${index + 1}`}`} /></td>
                       <td className="mobile-person-cell"><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small></div></div></td>
-                      <td className="mono-cell" data-label="الرقم القومي">{record.nationalId || "—"}</td><td data-label="اسم المنشأة">{record.establishmentName || "—"}</td>
+                      <td className="mono-cell" data-label="الرقم القومي">{record.nationalId || "—"}</td><td data-label={template === "s31" ? "تاريخ الإصابة" : "اسم المنشأة"}>{template === "s31" ? (record.injuryDate ? record.injuryDate.split("-").reverse().join("/") : "—") : record.establishmentName || "—"}</td>
                       <td data-label="اكتمال البيانات"><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / relevantFieldCount(template)) * 100))}%` }} /></div><small>{Math.min(filledCount(record), relevantFieldCount(template))} / {relevantFieldCount(template)}</small></div></td>
                       <td data-label="الحالة"><span className={`status-badge ${statusClass(status)}`}><span />{status}</span></td>
                       <td className="mobile-delete-cell"><button className="row-menu" onClick={(event) => { event.stopPropagation(); removeRecord(record.id); }} aria-label="حذف السجل"><Trash2 size={15} /></button></td>
@@ -717,7 +810,7 @@ export default function Home() {
             </div>
 
             <aside className="preview-panel">
-              <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / {template === "s2" ? "1" : "2"}</span></div>
+              <div className="preview-header"><div><p className="section-overline">المعاينة الحية</p><h2>صفحة النموذج</h2></div><span className="preview-page">1 / {isDedicatedRecords ? "1" : "2"}</span></div>
               <div className="preview-frame"><div className="preview-paper preview-pdf-paper">{previewImage ? <img className="preview-rendered-image" src={previewImage} alt={`معاينة ${TEMPLATE_LABELS[template]} بالبيانات الحالية`} /> : <div className="preview-loading">{previewState === "error" ? "تعذر إنشاء المعاينة" : "جاري تجهيز النموذج..."}</div>}</div><div className="preview-control"><button aria-label="تصغير المعاينة"><ChevronDown size={14} /></button><span>100%</span><button aria-label="تكبير المعاينة"><Plus size={14} /></button></div></div>
               <div className="preview-note"><div className="note-seal small"><Check size={14} /></div><div><strong>معاينة القالب الأصلي</strong><p>تُعرض الصفحة الأولى من PDF الفعلي بالبيانات الحالية، ويمكن تنزيل الملف كاملًا من الزر أدناه.</p></div></div>
               {template !== "s2" && <Button className="full-preview-button" variant="outline" onClick={downloadSelected}><Printer size={15} /> معاينة / تنزيل الصفحة</Button>}
@@ -730,5 +823,3 @@ export default function Home() {
     </div>
   );
 }
-
-

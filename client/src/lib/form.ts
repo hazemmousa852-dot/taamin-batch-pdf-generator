@@ -1,7 +1,7 @@
 // Design reminder: form vocabulary follows the “Registry Desk” philosophy—quiet, precise, and close to the printed document.
 
-export type TemplateId = "s1" | "s2" | "s6";
-export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1", s2: "نموذج س2", s6: "نموذج س6" };
+export type TemplateId = "s1" | "s2" | "s6" | "s31";
+export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1", s2: "نموذج س2", s6: "نموذج س6", s31: "نموذج 31" };
 export type RecordStatus = "مسودة" | "جاهز" | "ناقص";
 export type ValidationIssue = { key: keyof PersonRecord; message: string };
 
@@ -34,6 +34,9 @@ export const CODED_OPTIONS = {
   ],
 } satisfies Record<"sector" | "contributionCode" | "workType", CodedOption[]>;
 
+/** اسم ورقة «نموذج 31» داخل قالب Excel. */
+export const FORM31_SHEET_NAME = "نموذج 31";
+
 export type PersonRecord = {
   hireDate: string;
   receiptNumber: string;
@@ -45,6 +48,20 @@ export type PersonRecord = {
   disputeInsuredSignDate: string;
   applicantSignDate: string;
   signatureMatchDate: string;
+
+  // نموذج رقم (31): طلب صرف تعويض الأجر ومصاريف الانتقال في حالة الإصابة / المرض
+  injuryDate: string;
+  companion: string;
+  treatmentPlace: string;
+  travelExpenses: string;
+  wagePaymentMethod: string;
+  monthlyWage: string;
+  sickLeaveStartDate: string;
+  sickLeaveEndDate: string;
+  otherLine1: string;
+  otherLine2: string;
+  otherLine3: string;
+  signatureName: string;
 
   id: string;
   office: string;
@@ -97,7 +114,10 @@ export type PersonRecord = {
   declarationRole: string;
 };
 
-export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = [
+/** يحدد الورقة التي يُقرأ منها أو يُكتب فيها كل عمود داخل قالب Excel. */
+export type ExcelSheet = "shared" | "people" | "form31";
+
+export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string; sheet?: ExcelSheet }> = [
   { key: "hireDate", label: "تاريخ الالتحاق (س2) (DD/MM/YYYY)" },
   { key: "receiptNumber", label: "رقم وصل الخطاب المسجل بعلم الوصول (س6)" },
   { key: "receiptDate", label: "تاريخ وصل الخطاب المسجل (س6) (DD/MM/YYYY)" },
@@ -108,6 +128,21 @@ export const EXCEL_HEADERS: Array<{ key: keyof PersonRecord; label: string }> = 
   { key: "disputeInsuredSignDate", label: "تاريخ توقيع المؤمن عليه في حالة النزاع (س6) (DD/MM/YYYY)" },
   { key: "applicantSignDate", label: "تاريخ توقيع مقدم الطلب (س6) (DD/MM/YYYY)" },
   { key: "signatureMatchDate", label: "تاريخ مطابقة التوقيع (س1) (DD/MM/YYYY)" },
+
+  // أعمدة ورقة «نموذج 31». القيم المشتركة (المكتب، المنشأة، مقدم الطلب) تُملأ
+  // من ورقة «بيانات المنشأة والمفوض» تلقائيًا عند الاستيراد.
+  { key: "injuryDate", label: "تاريخ الإصابة (نموذج 31) (DD/MM/YYYY)", sheet: "form31" },
+  { key: "companion", label: "هل يوجد مرافق (نموذج 31)", sheet: "form31" },
+  { key: "sickLeaveStartDate", label: "تاريخ بداية الإجازة المرضي (نموذج 31) (DD/MM/YYYY)", sheet: "form31" },
+  { key: "sickLeaveEndDate", label: "تاريخ نهاية الإجازة المرضي (نموذج 31) (DD/MM/YYYY)", sheet: "form31" },
+  { key: "travelExpenses", label: "هل توجد مصاريف انتقال (نموذج 31)", sheet: "form31" },
+  { key: "treatmentPlace", label: "العلاج يتم داخل أم خارج البلاد (نموذج 31)", sheet: "form31" },
+  { key: "monthlyWage", label: "أجر الاشتراك الشهري للمصاب (نموذج 31)", sheet: "form31" },
+  { key: "wagePaymentMethod", label: "طريقة أداء الأجر (نموذج 31)", sheet: "form31" },
+  { key: "otherLine1", label: "بيانات أخرى 1 (نموذج 31)", sheet: "form31" },
+  { key: "otherLine2", label: "بيانات أخرى 2 (نموذج 31)", sheet: "form31" },
+  { key: "otherLine3", label: "بيانات أخرى 3 (نموذج 31)", sheet: "form31" },
+  { key: "signatureName", label: "الاسم أسفل توقيع مقدم الطلب (نموذج 31)", sheet: "form31" },
 
   { key: "insuredName", label: "اسم المؤمن عليه" },
   { key: "nationalId", label: "الرقم القومي" },
@@ -170,6 +205,18 @@ const EMPTY_VALUES: Omit<PersonRecord, "id"> = {
   disputeInsuredSignDate: "",
   applicantSignDate: "",
   signatureMatchDate: "",
+  injuryDate: "",
+  companion: "",
+  treatmentPlace: "",
+  travelExpenses: "",
+  wagePaymentMethod: "",
+  monthlyWage: "",
+  sickLeaveStartDate: "",
+  sickLeaveEndDate: "",
+  otherLine1: "",
+  otherLine2: "",
+  otherLine3: "",
+  signatureName: "",
 
   office: "",
   establishmentName: "",
@@ -238,11 +285,44 @@ const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
     "endDate", "endReason",
   ],
   s2: ["insuredName", "insuranceNumber", "nationalId", "startDate", "basicWage", "totalWage"],
+  // نموذج 31: أعمدة الورقة الخاصة + البيانات المشتركة التي تظهر في النموذج المطبوع
+  s31: [
+    "insuredName", "nationalId", "insuranceNumber", "injuryDate", "companion",
+    "sickLeaveStartDate", "sickLeaveEndDate", "travelExpenses", "treatmentPlace",
+    "monthlyWage", "wagePaymentMethod", "otherLine1", "otherLine2", "otherLine3",
+    "releaseDate", "signatureName",
+    "office", "establishmentName", "establishmentNumber",
+    "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId",
+  ],
 };
 
 const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ key, label }) => [key, label]));
-const dateFields: Array<keyof PersonRecord> = ["hireDate", "receiptDate", "insuredSignDate", "managerSignDate", "disputeManagerSignDate", "disputeInsuredSignDate", "applicantSignDate", "signatureMatchDate", "startDate", "birthDate", "increaseDate", "releaseDate", "endDate", "noticeDate"];
-const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage"];
+
+/**
+ * أعمدة ورقة «نموذج 31» داخل قالب Excel بترتيب ظهورها للمستخدم.
+ * البيانات المشتركة (المكتب، اسم المنشأة، رقم المنشأة، بيانات مقدم الطلب) لا
+ * تتكرر هنا لأنها تُقرأ من ورقة «بيانات المنشأة والمفوض» وتُضاف تلقائيًا لكل سجل.
+ */
+export const FORM31_SHEET_COLUMNS: Array<{ key: keyof PersonRecord; label: string; hint?: string }> = [
+  { key: "insuredName", label: "اسم المؤمن عليه" },
+  { key: "nationalId", label: "الرقم القومي", hint: "14 رقمًا" },
+  { key: "insuranceNumber", label: "الرقم التأميني", hint: "كما هو بدون فواصل" },
+  { key: "injuryDate", label: "تاريخ الإصابة (DD/MM/YYYY)", hint: "يوم/شهر/سنة — اتركه فارغًا في حالات المرض" },
+  { key: "companion", label: "هل يوجد مرافق", hint: "نعم / لا" },
+  { key: "sickLeaveStartDate", label: "تاريخ بداية الإجازة المرضي (DD/MM/YYYY)" },
+  { key: "sickLeaveEndDate", label: "تاريخ نهاية الإجازة المرضي (DD/MM/YYYY)" },
+  { key: "travelExpenses", label: "هل توجد مصاريف انتقال", hint: "نعم / لا" },
+  { key: "treatmentPlace", label: "العلاج يتم داخل أم خارج البلاد", hint: "داخل البلاد / خارج البلاد" },
+  { key: "monthlyWage", label: "أجر الاشتراك الشهري للمصاب" },
+  { key: "wagePaymentMethod", label: "طريقة أداء الأجر" },
+  { key: "otherLine1", label: "بيانات أخرى 1" },
+  { key: "otherLine2", label: "بيانات أخرى 2" },
+  { key: "otherLine3", label: "بيانات أخرى 3" },
+  { key: "releaseDate", label: "تحريرًا في (DD/MM/YYYY)" },
+  { key: "signatureName", label: "الاسم أسفل توقيع مقدم الطلب", hint: "اتركه فارغًا لاستخدام اسم مقدم الطلب" },
+];
+const dateFields: Array<keyof PersonRecord> = ["hireDate", "receiptDate", "insuredSignDate", "managerSignDate", "disputeManagerSignDate", "disputeInsuredSignDate", "applicantSignDate", "signatureMatchDate", "startDate", "birthDate", "increaseDate", "releaseDate", "endDate", "noticeDate", "injuryDate", "sickLeaveStartDate", "sickLeaveEndDate"];
+const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage", "monthlyWage"];
 
 export function normalizeDigits(value: unknown) {
   return String(value ?? "")
@@ -363,6 +443,19 @@ const aliases: Record<keyof PersonRecord, string[]> = {
   commercialRegistrationNumber: ["رقم السجل التجاري", "رقم السجل التجارى", "commercialregistrationnumber"],
   unifiedCommercialRegistrationNumber: ["رقم السجل التجاري الموحد", "رقم السجل التجارى الموحد", "unifiedcommercialregistrationnumber"],
   declarationRole: ["الصفة في الإقرار", "الصفة فى الإقرار", "صفة المقر", "declarationrole"],
+
+  injuryDate: ["تاريخ الإصابة", "تاريخ الإصابة (DD/MM/YYYY)", "تاريخ الإصابة (نموذج 31) (DD/MM/YYYY)", "تاريخ الاصابة", "injurydate"],
+  companion: ["هل يوجد مرافق", "هل يوجد مرافق (نموذج 31)", "يوجد مرافق", "المرافق", "companion"],
+  treatmentPlace: ["العلاج يتم داخل أم خارج البلاد", "العلاج يتم داخل أم خارج البلاد (نموذج 31)", "العلاج داخل أم خارج البلاد", "مكان العلاج", "treatmentplace"],
+  travelExpenses: ["هل توجد مصاريف انتقال", "هل توجد مصاريف انتقال (نموذج 31)", "مصاريف انتقال", "مصاريف الانتقال", "travelexpenses"],
+  wagePaymentMethod: ["طريقة أداء الأجر", "طريقة أداء الأجر (نموذج 31)", "طريقة أداء الاجر", "طريقة صرف الأجر", "wagepaymentmethod"],
+  monthlyWage: ["أجر الاشتراك الشهري للمصاب", "أجر الاشتراك الشهري للمصاب (نموذج 31)", "أجر الاشتراك الشهري", "الأجر التأميني الشهري", "monthlywage"],
+  sickLeaveStartDate: ["تاريخ بداية الإجازة المرضي", "تاريخ بداية الإجازة المرضي (DD/MM/YYYY)", "تاريخ بداية الإجازة المرضي (نموذج 31) (DD/MM/YYYY)", "بداية الإجازة المرضية", "sickleavestartdate"],
+  sickLeaveEndDate: ["تاريخ نهاية الإجازة المرضي", "تاريخ نهاية الإجازة المرضي (DD/MM/YYYY)", "تاريخ نهاية الإجازة المرضي (نموذج 31) (DD/MM/YYYY)", "نهاية الإجازة المرضية", "sickleaveenddate"],
+  otherLine1: ["بيانات أخرى 1", "بيانات أخرى 1 (نموذج 31)", "otherline1"],
+  otherLine2: ["بيانات أخرى 2", "بيانات أخرى 2 (نموذج 31)", "otherline2"],
+  otherLine3: ["بيانات أخرى 3", "بيانات أخرى 3 (نموذج 31)", "otherline3"],
+  signatureName: ["الاسم أسفل توقيع مقدم الطلب", "الاسم أسفل توقيع مقدم الطلب (نموذج 31)", "اسم الموقّع", "signaturename"],
 };
 
 export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
@@ -405,4 +498,3 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
 export function displayValue(value: string | undefined, empty = "—") {
   return value?.trim() ? value : empty;
 }
-

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { PDFDocument } from "pdf-lib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { makeEmptyRecord } from "./form";
-import { createMergedPdf, fillPdf, safeFileName, toPdfText } from "./pdf";
+import { buildForm31Overlays, createMergedPdf, fillPdf, safeFileName, toPdfText } from "./pdf";
 
 beforeAll(() => {
   vi.stubGlobal("fetch", async (url: string | URL) => {
@@ -24,11 +24,67 @@ const record = {
   center: "قصر النيل", phone: "01011111111", address: "١ شارع النيل - القاهرة", endDate: "2025-07-21", endReason: "انتهاء الخدمة",
 };
 
+describe("نموذج 31 overlay map", () => {
+  const record = {
+    ...makeEmptyRecord(),
+    office: "مكتب القاهرة", insuredName: "محمد أحمد علي", insuranceNumber: "001234567", nationalId: "29501010123456",
+    establishmentName: "شركة الاختبار", establishmentNumber: "12345678",
+    applicantName: "أحمد محمد", applicantInsuranceNumber: "009876543", applicantNationalId: "29001010123456",
+    injuryDate: "2026-09-14", companion: "yes", treatmentPlace: "خارج البلاد", travelExpenses: "لا",
+    sickLeaveStartDate: "2026-09-15", sickLeaveEndDate: "2026-09-29", monthlyWage: "4500",
+    wagePaymentMethod: "بالحساب البنكي", otherLine1: "سطر أول", releaseDate: "2026-10-01",
+  };
+
+  it("places every filled value inside the printed form cells", () => {
+    const overlays = buildForm31Overlays(record, 612, 792);
+    const byKey = (value: string) => overlays.filter((overlay) => overlay.value === value);
+    // الرقم القومي للمؤمن عليه يظهر مرة واحدة أعلى الصفحة، والرقم القومي لمقدم
+    // الطلب يظهر في شبكته داخل قسم «بيانات مقدم الطلب».
+    expect(byKey("29501010123456")).toHaveLength(1);
+    expect(byKey("29501010123456")[0].boxCount).toBe(14);
+    expect(byKey("29001010123456")).toHaveLength(1);
+    expect(byKey("29001010123456")[0].boxCount).toBe(14);
+    // كل التواريخ الأربعة لها شرحات مطبوعة: سنة 26 تظهر أربع مرات (خانتان لكل تاريخ)
+    expect(overlays.filter((overlay) => overlay.value === "26")).toHaveLength(4);
+    expect(overlays.filter((overlay) => overlay.value === "26").every((overlay) => overlay.boxCount === 2)).toBe(true);
+    // سبتمبر يتكرر في تاريخ الإصابة وبداية الإجازة ونهايتها
+    expect(overlays.filter((overlay) => overlay.value === "09")).toHaveLength(3);
+    expect(byKey("14")).toHaveLength(1);
+    expect(byKey("15")).toHaveLength(1);
+    expect(byKey("29")).toHaveLength(1);
+    expect(byKey("10")).toHaveLength(1);
+    // الرقم التأميني يظهر في الشبكة العلوية وشبكة المؤمن عليه
+    expect(byKey("001234567").filter((overlay) => overlay.boxCount === 9)).toHaveLength(2);
+    expect(byKey("نعم")).toHaveLength(1);
+    expect(byKey("خارج البلاد")).toHaveLength(1);
+    expect(byKey("سطر أول")).toHaveLength(1);
+  });
+
+  it("converts top-anchored coordinates to pdf-lib coordinates on an A4 page", () => {
+    const [first] = buildForm31Overlays({ ...makeEmptyRecord(), office: "مكتب" }, 595.28, 841.89);
+    // المكتب أعلى الصفحة: يتحول إلى y قريب من الارتفاع في نظام pdf-lib
+    expect(first.x).toBeCloseTo((467.3 / 612) * 595.28, 1);
+    expect(first.y).toBeGreaterThan(770);
+    expect(first.y).toBeLessThan(830);
+    expect(first.width).toBeGreaterThan(70);
+  });
+
+  it("keeps form 31 as a single flattened page with no interactive leftover", async () => {
+    const pdf = await PDFDocument.load(await fillPdf(record, "s31"));
+    expect(pdf.getPageCount()).toBe(1);
+    expect(pdf.getForm().getFields()).toHaveLength(0);
+    // خارج المتصفح يبقى ملف القالب بمقاسه الأصلي (Letter 612×792)؛ وداخل
+    // المتصفح يمر الملف على fitPdfToA4 مثل باقي النماذج فيحصل على مقاس A4.
+    expect(pdf.getPage(0).getSize().width).toBeCloseTo(612, 0);
+    expect(pdf.getPage(0).getSize().height).toBeCloseTo(792, 0);
+  });
+});
+
 describe("official PDF field maps", () => {
   it("exports partial and empty forms without required-data errors", async () => {
-    for (const template of ["s1", "s2", "s6"] as const) {
+    for (const template of ["s1", "s2", "s6", "s31"] as const) {
       const pdf = await PDFDocument.load(await fillPdf(makeEmptyRecord(), template));
-      expect(pdf.getPageCount()).toBe(template === "s2" ? 1 : 2);
+      expect(pdf.getPageCount()).toBe(template === "s2" || template === "s31" ? 1 : 2);
     }
   });
   it("fills the approved additional S1 and S6 destinations", async () => {
@@ -103,5 +159,3 @@ describe("official PDF field maps", () => {
     expect(merged.getPageCount()).toBe(2);
   });
 });
-
-

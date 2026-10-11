@@ -3,6 +3,14 @@ import fontkit from "@pdf-lib/fontkit";
 import * as reshaperPackage from "arabic-persian-reshaper";
 import JSZip from "jszip";
 import { normalizeDigits, normalizeText, type PersonRecord, type TemplateId } from "./form";
+import {
+  FORM31_BOX_ANCHORS,
+  FORM31_DATE_ANCHORS,
+  FORM31_TEXT_ANCHORS,
+  form31DisplayValue,
+  toPdfLibRect,
+  type TopAnchor,
+} from "./form31-map";
 
 const configuredBase = import.meta.env?.BASE_URL ?? "/";
 const ASSET_BASE = configuredBase.endsWith("/") ? configuredBase : `${configuredBase}/`;
@@ -13,6 +21,8 @@ export const TEMPLATE_URLS: Record<TemplateId, string> = {
   // older official S2 background after the template is replaced.
   s2: assetUrl("taamin-s2-template-v3.pdf"),
   s6: assetUrl("taamin-s6-template.pdf"),
+  // النموذج الرسمي رقم (31) لا يحتوي حقول AcroForm مفيدة؛ تُعبّأ خاناته بالرسم فوقها.
+  s31: assetUrl("taamin-form31-template.pdf"),
 };
 const ARABIC_FONT_URL = assetUrl("NotoNaskhArabic-Regular.ttf");
 const ArabicShaper = (reshaperPackage as unknown as { ArabicShaper?: { convertArabic: (value: string) => string } }).ArabicShaper;
@@ -403,8 +413,134 @@ async function bakeFormText(
   return true;
 }
 
+/** مستطيل جاهز للرسم فوق إحدى خانات نموذج 31. */
+type Form31Overlay = {
+  x: number; y: number; width: number; height: number; value: string;
+  boxCount?: number; direction?: "rtl" | "ltr"; alignment?: "left" | "center" | "right";
+};
+
+let form31FontReady: Promise<void> | undefined;
+function ensureForm31Font(fontBytes: ArrayBuffer) {
+  if (!form31FontReady) {
+    form31FontReady = (async () => {
+      const face = new FontFace("TaaminForm31Arabic", fontBytes.slice(0));
+      await face.load();
+      document.fonts.add(face);
+    })();
+  }
+  return form31FontReady;
+}
+
+async function paintForm31Overlays(pdfDoc: PDFDocument, overlays: Form31Overlay[], fontBytes: ArrayBuffer) {
+  if (typeof document === "undefined" || typeof FontFace === "undefined") return;
+  await ensureForm31Font(fontBytes);
+  const page = pdfDoc.getPages()[0];
+  const scale = 4;
+  for (const overlay of overlays) {
+    if (!normalizeText(overlay.value)) continue;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.ceil(overlay.width * scale));
+    canvas.height = Math.max(1, Math.ceil(overlay.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("تعذر تجهيز رسم نموذج 31");
+    const value = toArabicNumerals(normalizeText(overlay.value));
+    context.fillStyle = "#000";
+    context.textBaseline = "middle";
+    if (overlay.boxCount) {
+      // الأرقام داخل شبكة مطبوعة: خانة لكل رقم، من اليمين إلى اليسار.
+      const digits = Array.from(value).slice(-overlay.boxCount);
+      const cellWidth = canvas.width / overlay.boxCount;
+      const firstCell = overlay.boxCount - digits.length;
+      const size = Math.max(8.5, Math.min(overlay.height * 0.82, (overlay.width / overlay.boxCount) * 0.86));
+      context.direction = "ltr";
+      context.textAlign = "center";
+      context.font = `700 ${size * scale}px TaaminForm31Arabic`;
+      digits.forEach((digit, index) =>
+        context.fillText(digit, (firstCell + index + 0.5) * cellWidth, canvas.height * 0.55, cellWidth * 0.92),
+      );
+    } else {
+      context.direction = overlay.direction ?? "rtl";
+      context.textAlign = overlay.alignment ?? "center";
+      let size = Math.min(15, Math.max(10.5, overlay.height * 0.82));
+      context.font = `${size * scale}px TaaminForm31Arabic`;
+      const maxWidth = Math.max(8, (overlay.width - 4) * scale);
+      while (size > 7 && context.measureText(value).width > maxWidth) {
+        size -= 0.5;
+        context.font = `${size * scale}px TaaminForm31Arabic`;
+      }
+      const inset = 2 * scale;
+      const textX = overlay.alignment === "right" ? canvas.width - inset
+        : overlay.alignment === "left" ? inset : canvas.width / 2;
+      context.fillText(value, textX, canvas.height * 0.52, maxWidth);
+    }
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((item) => (item ? resolve(item) : reject(new Error("تعذر تجهيز بيانات نموذج 31"))), "image/png"));
+    const png = await pdfDoc.embedPng(await blob.arrayBuffer());
+    page.drawImage(png, { x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height });
+  }
+}
+
+/** يبني قائمة الرسم لنموذج 31 من السجل الحالي ومن خريطة الخانات. */
+export function buildForm31Overlays(record: PersonRecord, pageWidth: number, pageHeight: number, rotation = 0) {
+  const overlays: Form31Overlay[] = [];
+  for (const [key, anchor] of Object.entries(FORM31_TEXT_ANCHORS) as Array<[keyof PersonRecord, TopAnchor]>) {
+    const value = form31DisplayValue(key, record);
+    if (!value) continue;
+    const isArabic = /[\u0600-\u06ff]/.test(value);
+    // الإجابات القصيرة (نعم/لا/مكان العلاج) تتوسط الفراغ، وباقي النصوص العربية
+    // تُكتب من نهاية السطر المنقّط يمينًا، والأرقام تتوسط خاناتها.
+    const isShortAnswer = key === "companion" || key === "travelExpenses" || key === "treatmentPlace";
+    overlays.push({
+      ...toPdfLibRect(anchor, pageWidth, pageHeight, rotation),
+      value,
+      alignment: isArabic && !isShortAnswer ? "right" : "center",
+      direction: isArabic ? "rtl" : "ltr",
+    });
+  }
+  for (const { source, anchor } of FORM31_BOX_ANCHORS) {
+    const digits = cleanDigits(record[source]);
+    if (!digits) continue;
+    overlays.push({
+      ...toPdfLibRect(anchor, pageWidth, pageHeight, rotation),
+      value: digits, boxCount: anchor.boxCount, direction: "ltr", alignment: "center",
+    });
+  }
+  for (const { source, parts } of FORM31_DATE_ANCHORS) {
+    const match = normalizeDigits(record[source]).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) continue;
+    // «20» مطبوعة مسبقًا قبل خانتَي السنة، فتُكتب خانتان فقط لكل جزء.
+    const values = [match[1].slice(-2), match[2], match[3]];
+    parts.forEach((anchor, index) => overlays.push({
+      ...toPdfLibRect(anchor, pageWidth, pageHeight, rotation),
+      value: values[index], boxCount: 2, direction: "ltr", alignment: "center",
+    }));
+  }
+  return overlays;
+}
+
+async function fillForm31(record: PersonRecord) {
+  const [templateBytes, fontBytes] = await Promise.all([
+    fetchAsset(TEMPLATE_URLS.s31, "قالب نموذج 31"),
+    fetchAsset(ARABIC_FONT_URL, "الخط العربي"),
+  ]);
+  const pdfDoc = await PDFDocument.load(templateBytes.slice(0));
+  // حقول AcroForm في النموذج الرسمي بلا مظهر مرئي وتقع فوق الخانات نفسها؛
+  // إزالتها تمنع بقاء أي خانة تفاعلية داخل الملف المطبوع.
+  const form = pdfDoc.getForm();
+  for (const field of form.getFields()) {
+    try { form.removeField(field); } catch { /* بعض الحقول لا تقبل الإزالة */ }
+  }
+  const page = pdfDoc.getPages()[0];
+  const { width, height } = page.getSize();
+  const overlays = buildForm31Overlays(record, width, height, page.getRotation().angle);
+  await paintForm31Overlays(pdfDoc, overlays, fontBytes);
+  const saved = await pdfDoc.save({ useObjectStreams: false });
+  return typeof document === "undefined" ? saved : fitPdfToA4(saved, false);
+}
+
 export async function fillPdf(record: PersonRecord, template: TemplateId = "s1") {
   if (template === "s2") return fillS2Page([record]);
+  if (template === "s31") return fillForm31(record);
   const [templateBytes, fontBytes] = await Promise.all([fetchAsset(TEMPLATE_URLS[template], "قالب النموذج"), fetchAsset(ARABIC_FONT_URL, "الخط العربي")]);
   const pdfDoc = await PDFDocument.load(templateBytes.slice(0));
   pdfDoc.registerFontkit(fontkit);
@@ -480,7 +616,7 @@ export async function fillPdf(record: PersonRecord, template: TemplateId = "s1")
 export function safeFileName(record: PersonRecord, index = 1, template: TemplateId = "s1") {
   const person = (record.insuredName || "سجل").replace(/[^\u0600-\u06ff\w\s-]/g, "").trim().replace(/\s+/g, "-");
   const identity = cleanDigits(record.insuranceNumber || record.nationalId).slice(-10) || String(index).padStart(3, "0");
-  const prefix = template === "s6" ? "س6" : template === "s2" ? "س2" : "س1";
+  const prefix = template === "s6" ? "س6" : template === "s2" ? "س2" : template === "s31" ? "نموذج31" : "س1";
   return `${prefix}-${person || "سجل"}-${identity}-${String(index).padStart(3, "0")}.pdf`;
 }
 export function downloadBlob(data: BlobPart, fileName: string, type = "application/octet-stream") {
@@ -533,5 +669,3 @@ export async function createMergedPdf(records: PersonRecord[], template: Templat
   }
   return merged.save({ useObjectStreams: false });
 }
-
-
