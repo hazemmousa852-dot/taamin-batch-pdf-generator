@@ -439,16 +439,26 @@ export default function Home() {
   function updateField(key: EditableKey, value: string) {
     const nextValue = IDENTIFIER_FIELDS.has(key) ? normalizeDigits(value).replace(/\D/g, "") : value;
     setRecords((current) =>
-      current.map((record) => (record.id === activeId ? { ...record, [key]: nextValue } : record)),
+      current.map((record) => (record.id === activeRecord.id ? { ...record, [key]: nextValue } : record)),
     );
+  }
+
+  function openRecordEditor(id: string) {
+    setActiveId(id);
+    setMode("manual");
+    requestAnimationFrame(() => {
+      const editor = document.getElementById("record-editor");
+      editor?.scrollIntoView({ behavior: "smooth", block: "start" });
+      editor?.querySelector<HTMLInputElement>(".field-group-visible input")?.focus({ preventScroll: true });
+    });
   }
 
   function addRecord() {
     const next = makeEmptyRecord();
     setRecords((current) => [...current, next]);
     setSelectedIds((current) => new Set(current).add(next.id));
-    setActiveId(next.id);
-    setMode("manual");
+    setActiveGroup(availableGroups[0]?.id ?? "identity");
+    openRecordEditor(next.id);
     toast.success("أضيف سجل جديد", { description: "يمكنك بدء تعبئة بيانات المؤمن عليه الآن." });
   }
 
@@ -780,7 +790,7 @@ export default function Home() {
                     const isActive = record.id === activeId;
                     return <tr key={record.id} className={isActive ? "record-row-active" : ""} onClick={() => setActiveId(record.id)}>
                       <td className="check-cell"><input type="checkbox" checked={selectedIds.has(record.id)} onChange={() => toggleRecordSelection(record.id)} onClick={(event) => event.stopPropagation()} aria-label={`تحديد ${record.insuredName || `السجل ${index + 1}`}`} /></td>
-                      <td className="mobile-person-cell"><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small></div></div></td>
+                      <td className="mobile-person-cell"><div className="person-cell"><span className="person-avatar">{initials(record.insuredName)}</span><div><strong>{record.insuredName || "سجل جديد"}</strong><small>{record.insuranceNumber || "لم يُدخل الرقم التأميني"}</small><button type="button" className="record-edit-button" onClick={(event) => { event.stopPropagation(); openRecordEditor(record.id); }}>إدخال / تعديل البيانات</button></div></div></td>
                       <td className="mono-cell" data-label="الرقم القومي">{record.nationalId || "—"}</td><td data-label={template === "s31" ? "تاريخ الإصابة" : "اسم المنشأة"}>{template === "s31" ? (record.injuryDate ? record.injuryDate.split("-").reverse().join("/") : "—") : record.establishmentName || "—"}</td>
                       <td data-label="اكتمال البيانات"><div className="progress-cell"><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((filledCount(record) / relevantFieldCount(template)) * 100))}%` }} /></div><small>{Math.min(filledCount(record), relevantFieldCount(template))} / {relevantFieldCount(template)}</small></div></td>
                       <td data-label="الحالة"><span className={`status-badge ${statusClass(status)}`}><span />{status}</span></td>
@@ -796,7 +806,7 @@ export default function Home() {
           {template === "s2" && <div className="manual-stage-banner"><span className="callout-number">5</span><div><strong>الإضافة والتعديل اليدوي في النهاية</strong><p>بعد استيراد Excel راجع السجلات بالأسفل، وعدّل الناقص أو اضغط «إضافة سجل» لإدخال موظف جديد.</p></div><UserRound size={18} /></div>}
 
           <section className="editor-layout">
-            <div className="editor-panel">
+            <div className="editor-panel" id="record-editor">
               <div className="editor-header"><div><p className="section-overline">السجل المحدد</p><h2>{activeRecord.insuredName || "سجل جديد"}</h2></div><Badge className={`status-badge ${statusClass(recordStatus(activeRecord, template))}`}><span />{recordStatus(activeRecord, template)}</Badge></div>
               <div className="group-tabs" role="tablist" aria-label="أقسام النموذج">
                 {availableGroups.map((group) => { const Icon = group.icon; return <button key={group.id} className={activeGroup === group.id ? "group-tab-active" : ""} onClick={() => setActiveGroup(group.id)}><span className="group-tab-number">{group.number}</span><Icon size={16} /><span>{group.title}</span></button>; })}
