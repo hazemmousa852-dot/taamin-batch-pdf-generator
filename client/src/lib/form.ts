@@ -34,8 +34,10 @@ export const CODED_OPTIONS = {
   ],
 } satisfies Record<"sector" | "contributionCode" | "workType", CodedOption[]>;
 
-/** اسم ورقة «نموذج 31» داخل قالب Excel. */
-export const FORM31_SHEET_NAME = "نموذج 31";
+/** اسم ورقة «نموذج 31» داخل قالب Excel — ورقة واحدة تضم كل البيانات المطلوبة. */
+export const FORM31_SHEET_NAME = "بيان كل الداتا المطلوبة";
+/** أسماء أوراق قديمة في ملفات سابقة — تُقرأ للتوافق ولا تُكتب في القالب الجديد. */
+export const FORM31_LEGACY_SHEET_NAMES = ["نموذج 31"];
 
 export type PersonRecord = {
   hireDate: string;
@@ -299,11 +301,19 @@ const REQUIRED_FIELDS: Record<TemplateId, Array<keyof PersonRecord>> = {
 const FIELD_LABELS = new Map<keyof PersonRecord, string>(EXCEL_HEADERS.map(({ key, label }) => [key, label]));
 
 /**
- * أعمدة ورقة «نموذج 31» داخل قالب Excel بترتيب ظهورها للمستخدم.
- * البيانات المشتركة (المكتب، اسم المنشأة، رقم المنشأة، بيانات مقدم الطلب) لا
- * تتكرر هنا لأنها تُقرأ من ورقة «بيانات المنشأة والمفوض» وتُضاف تلقائيًا لكل سجل.
+ * أعمدة الورقة الواحدة لنموذج 31 في قالب Excel — بترتيب مطابق لسير النموذج المطبوع:
+ * بيانات المكتب ومقدم الطلب والمنشأة أولًا (تُكتب مرة واحدة وتُورَّث تلقائيًا لكل صف
+ * تالٍ يُترك فارغًا)، ثم بيانات كل حالة إصابة أو إجازة مرضية على حدة.
  */
 export const FORM31_SHEET_COLUMNS: Array<{ key: keyof PersonRecord; label: string; hint?: string }> = [
+  { key: "office", label: "المكتب", hint: "مكتب التأمينات" },
+  { key: "applicantName", label: "مقدم الطلب" },
+  { key: "applicantRole", label: "صفة مقدم الطلب", hint: "مثال: المدير المسؤول" },
+  { key: "applicantInsuranceNumber", label: "الرقم التأميني لمقدم الطلب" },
+  { key: "applicantPhone", label: "رقم تليفون مقدم الطلب" },
+  { key: "applicantNationalId", label: "الرقم القومي لمقدم الطلب", hint: "14 رقمًا" },
+  { key: "establishmentName", label: "اسم المنشأة" },
+  { key: "establishmentNumber", label: "رقم المنشأة" },
   { key: "insuredName", label: "اسم المؤمن عليه" },
   { key: "nationalId", label: "الرقم القومي", hint: "14 رقمًا" },
   { key: "insuranceNumber", label: "الرقم التأميني", hint: "كما هو بدون فواصل" },
@@ -321,6 +331,25 @@ export const FORM31_SHEET_COLUMNS: Array<{ key: keyof PersonRecord; label: strin
   { key: "releaseDate", label: "تحريرًا في (DD/MM/YYYY)" },
   { key: "signatureName", label: "الاسم أسفل توقيع مقدم الطلب", hint: "اتركه فارغًا لاستخدام اسم مقدم الطلب" },
 ];
+
+/**
+ * الحقول المشتركة في الورقة الواحدة: تُكتب مرة واحدة في أول صف، ويورّثها النظام
+ * تلقائيًا لكل صف تالٍ تركه المستخدم فارغًا.
+ */
+export const FORM31_CARRY_FIELDS: Array<keyof PersonRecord> = [
+  "office", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone",
+  "applicantNationalId", "establishmentName", "establishmentNumber",
+];
+
+/** يورّث الحقول المشتركة من سجل سابق إلى سجل جديد عند تركها فارغة. */
+export function carryForwardShared(target: PersonRecord, source?: PersonRecord) {
+  if (!source) return target;
+  for (const key of FORM31_CARRY_FIELDS) {
+    if (!target[key] && source[key]) target[key] = source[key];
+  }
+  return target;
+}
+
 const dateFields: Array<keyof PersonRecord> = ["hireDate", "receiptDate", "insuredSignDate", "managerSignDate", "disputeManagerSignDate", "disputeInsuredSignDate", "applicantSignDate", "signatureMatchDate", "startDate", "birthDate", "increaseDate", "releaseDate", "endDate", "noticeDate", "injuryDate", "sickLeaveStartDate", "sickLeaveEndDate"];
 const moneyFields: Array<keyof PersonRecord> = ["basicWage", "variableWage", "totalWage", "monthlyWage"];
 

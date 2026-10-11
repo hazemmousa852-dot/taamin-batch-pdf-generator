@@ -26,18 +26,19 @@ globalThis.fetch = async (url) => {
 };
 
 const { fillPdf } = await import("../client/src/lib/pdf.ts");
-const { mapExcelRow } = await import("../client/src/lib/form.ts");
+const { carryForwardShared, mapExcelRow } = await import("../client/src/lib/form.ts");
 const { createZip } = await import("../client/src/lib/pdf.ts");
 const JSZip = (await import("jszip")).default;
 
 const workbook = XLSX.read(await readFile("form31-template-filled.xlsx"), { type: "buffer", cellDates: true });
-const rows = XLSX.utils.sheet_to_json(workbook.Sheets["نموذج 31"], { defval: "" });
-const shared = mapExcelRow(XLSX.utils.sheet_to_json(workbook.Sheets["بيانات المنشأة والمفوض"], { defval: "" })[0]);
+const sheetName = workbook.SheetNames[0];
+const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+// نفس منطق الواجهة: البيانات المشتركة تُورَّث من الصف السابق عند تركها فارغة
+let previous;
 const records = rows.map((row) => {
   const record = mapExcelRow(row);
-  for (const key of ["office", "establishmentName", "establishmentNumber", "applicantName", "applicantRole", "applicantInsuranceNumber", "applicantPhone", "applicantNationalId"]) {
-    if (!record[key] && shared[key]) record[key] = shared[key];
-  }
+  carryForwardShared(record, previous);
+  previous = record;
   return record;
 });
 

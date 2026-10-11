@@ -53,6 +53,8 @@ import { buildForm31Workbook } from "@/lib/form31xlsx";
 import {
   EXCEL_HEADERS,
   CODED_OPTIONS,
+  carryForwardShared,
+  FORM31_LEGACY_SHEET_NAMES,
   FORM31_SHEET_NAME,
   filledCount,
   makeEmptyRecord,
@@ -469,11 +471,12 @@ export default function Home() {
     setIsProcessing(true);
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      // نموذج 31 يقرأ من ورقته الخاصة، وباقي النماذج تقرأ من ورقة المؤمن عليهم.
-      // وإن كانت الورقة المفضّلة فارغة نجرّب الورقة الأخرى قبل إعلان الفشل.
+      // نموذج 31 يقرأ من ورقته الواحدة (ويقبل أسماء الأوراق الأقدم للتوافق)،
+      // وباقي النماذج تقرأ من ورقة المؤمن عليهم. وإن كانت الورقة المفضّلة فارغة
+      // نجرّب الورقة الأخرى قبل إعلان الفشل.
       const sheetCandidates = template === "s31"
-        ? [FORM31_SHEET_NAME, "بيانات المؤمن عليهم"]
-        : ["بيانات المؤمن عليهم", FORM31_SHEET_NAME];
+        ? [FORM31_SHEET_NAME, ...FORM31_LEGACY_SHEET_NAMES, "بيانات المؤمن عليهم"]
+        : ["بيانات المؤمن عليهم", FORM31_SHEET_NAME, ...FORM31_LEGACY_SHEET_NAMES];
       let rows: Array<Record<string, unknown>> = [];
       let foundSheet = false;
       for (const name of sheetCandidates) {
@@ -491,6 +494,9 @@ export default function Home() {
       const sharedSheet = workbook.Sheets["البيانات الثابتة"] ?? workbook.Sheets["بيانات المنشأة والمفوض"];
       const sharedRow = sharedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sharedSheet, { defval: "" })[0] : undefined;
       const sharedRecord = sharedRow ? mapExcelRow(sharedRow) : undefined;
+      // في ورقة نموذج 31 الواحدة قد تُكتب البيانات المشتركة في أول صف فقط،
+      // لذلك نورّثها لكل صف تالٍ تركها فارغة.
+      let lastForm31Record: PersonRecord | undefined;
       const imported = rows.flatMap((row) => {
         const record = mapExcelRow(row);
         const personKeys = EXCEL_HEADERS.map(({ key }) => key).filter((key): key is EditableKey => key !== "id");
@@ -498,7 +504,12 @@ export default function Home() {
           !SHARED_EXCEL_FIELDS.has(key) && record[key].trim(),
         );
         if (!hasPersonData) return [];
-        if (sharedRecord) for (const key of Array.from(SHARED_EXCEL_FIELDS)) if (!record[key] && sharedRecord[key]) record[key] = sharedRecord[key];
+        if (template === "s31") {
+          carryForwardShared(record, lastForm31Record);
+          lastForm31Record = record;
+        } else if (sharedRecord) {
+          for (const key of Array.from(SHARED_EXCEL_FIELDS)) if (!record[key] && sharedRecord[key]) record[key] = sharedRecord[key];
+        }
         return [record];
       });
       if (!imported.length) {
@@ -533,14 +544,10 @@ export default function Home() {
 
   async function downloadForm31Template() {
     try {
-      // نفس القالب المرن (أوراق المنشأة والمفوض + قوائم الأكواد) مع إضافة ورقة «نموذج 31»
-      const response = await fetch(assetUrl("taamin-flexible-template.b64"));
-      if (!response.ok) throw new Error("تعذر تحميل القالب");
-      const bytes = Uint8Array.from(atob((await response.text()).trim()), (char) => char.charCodeAt(0));
-      const workbook = await buildForm31Workbook(bytes);
+      const workbook = await buildForm31Workbook();
       downloadBlob(workbook, "قالب-نموذج-31.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       toast.success("تم تنزيل قالب نموذج 31", {
-        description: "املأ ورقة «بيانات المنشأة والمفوض» مرة واحدة، ثم صفًا لكل إصابة أو إجازة مرضية في ورقة «نموذج 31».",
+        description: "ورقة واحدة تضم كل البيانات: اكتب بيانات المكتب ومقدم الطلب والمنشأة في الصف الأول، ثم صفًا لكل إصابة أو إجازة مرضية. البيانات المشتركة تُنسخ تلقائيًا للصفوف التالية.",
       });
     } catch { toast.error("تعذر تنزيل القالب؛ حاول مرة أخرى"); }
   }

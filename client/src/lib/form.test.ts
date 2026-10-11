@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { makeEmptyRecord, mapExcelRow, normalizeDigits, recordStatus, validateRecord } from "./form";
+import {
+  carryForwardShared, FORM31_SHEET_COLUMNS, FORM31_SHEET_NAME,
+  makeEmptyRecord, mapExcelRow, normalizeDigits, recordStatus, validateRecord,
+} from "./form";
 
 function validRecord() {
   return {
@@ -38,6 +41,51 @@ describe("Arabic form validation", () => {
     expect(validateRecord(value, "s6")).toEqual([]);
   });
   it("normalizes Arabic and Persian digits", () => expect(normalizeDigits("١٢٣۴۵")).toBe("12345"));
+  it("keeps the single نموذج 31 sheet ordered as the printed form", () => {
+    expect(FORM31_SHEET_NAME).toBe("بيان كل الداتا المطلوبة");
+    const labels = FORM31_SHEET_COLUMNS.map((column) => column.label);
+    // بيانات المكتب ومقدم الطلب والمنشأة أولًا، ثم بيانات الحالة
+    expect(labels.slice(0, 8)).toEqual([
+      "المكتب", "مقدم الطلب", "صفة مقدم الطلب", "الرقم التأميني لمقدم الطلب",
+      "رقم تليفون مقدم الطلب", "الرقم القومي لمقدم الطلب", "اسم المنشأة", "رقم المنشأة",
+    ]);
+    for (const label of ["اسم المؤمن عليه", "الرقم القومي", "الرقم التأميني", "تاريخ الإصابة (DD/MM/YYYY)",
+      "هل يوجد مرافق", "تاريخ بداية الإجازة المرضي (DD/MM/YYYY)", "تاريخ نهاية الإجازة المرضي (DD/MM/YYYY)",
+      "هل توجد مصاريف انتقال", "العلاج يتم داخل أم خارج البلاد", "أجر الاشتراك الشهري للمصاب",
+      "طريقة أداء الأجر", "بيانات أخرى 1", "بيانات أخرى 2", "بيانات أخرى 3",
+      "تحريرًا في (DD/MM/YYYY)", "الاسم أسفل توقيع مقدم الطلب"]) {
+      expect(labels).toContain(label);
+    }
+    // كل عمود في الورقة يجب أن يكون له مقابل في مفتاح قراءة Excel
+    for (const column of FORM31_SHEET_COLUMNS) {
+      const imported = mapExcelRow({ [column.label]: "قيمة" });
+      expect(imported[column.key]).toBe("قيمة");
+    }
+  });
+
+  it("inherits the shared columns from the previous row in the single sheet", () => {
+    const first = mapExcelRow({
+      "المكتب": "مكتب المنصورة", "مقدم الطلب": "حازم موسى", "صفة مقدم الطلب": "مسؤول شؤون العاملين",
+      "الرقم التأميني لمقدم الطلب": "001234567", "رقم تليفون مقدم الطلب": "01012345678",
+      "الرقم القومي لمقدم الطلب": "29001010123456", "اسم المنشأة": "شركة النيل", "رقم المنشأة": "12345678",
+      "اسم المؤمن عليه": "محمد أحمد", "تاريخ بداية الإجازة المرضي (DD/MM/YYYY)": "15/09/2026",
+    });
+    const second = mapExcelRow({
+      "اسم المؤمن عليه": "سعاد إبراهيم", "تاريخ بداية الإجازة المرضي (DD/MM/YYYY)": "01/10/2026",
+    });
+    carryForwardShared(second, first);
+    expect(second.office).toBe("مكتب المنصورة");
+    expect(second.establishmentName).toBe("شركة النيل");
+    expect(second.applicantName).toBe("حازم موسى");
+    // القيم الخاصة بالحالة لا تُورَّث
+    expect(second.insuredName).toBe("سعاد إبراهيم");
+    expect(second.sickLeaveStartDate).toBe("2026-10-01");
+    // ولا تُكتب فوق قيمة موجودة
+    const third = { ...second, office: "مكتب آخر" };
+    carryForwardShared(third, first);
+    expect(third.office).toBe("مكتب آخر");
+  });
+
   it("imports the نموذج 31 sheet columns with their exact Excel headings", () => {
     const record = mapExcelRow({
       "اسم المؤمن عليه": "محمد أحمد",
