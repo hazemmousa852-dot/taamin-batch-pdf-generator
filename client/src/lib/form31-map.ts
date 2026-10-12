@@ -61,7 +61,7 @@ export const FORM31_BOX_ANCHORS: Array<{ id: string; source: keyof PersonRecord;
 export const FORM31_INLINE_DATE_ANCHORS: Array<{ source: keyof PersonRecord; anchor: TopAnchor }> = [
   { source: "injuryDate", anchor: { x0: 406, y0: 419.02, x1: 502, y1: 439.66 } },
   { source: "sickLeaveStartDate", anchor: { x0: 323, y0: 450, x1: 427, y1: 471 } },
-  { source: "sickLeaveEndDate", anchor: { x0: 58, y0: 454, x1: 179, y1: 475 } },
+  { source: "sickLeaveEndDate", anchor: { x0: 58, y0: 451, x1: 179, y1: 472 } },
   { source: "releaseDate", anchor: { x0: 418, y0: 604.21, x1: 519, y1: 624.85 } },
 ];
 
