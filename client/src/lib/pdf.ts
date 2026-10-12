@@ -5,7 +5,6 @@ import JSZip from "jszip";
 import { normalizeDigits, normalizeText, type PersonRecord, type TemplateId } from "./form";
 import {
   FORM31_BOX_ANCHORS,
-  FORM31_DATE_ANCHORS,
   FORM31_INLINE_DATE_ANCHORS,
   FORM31_TEXT_ANCHORS,
   form31DisplayValue,
@@ -462,12 +461,15 @@ async function paintForm31Overlays(pdfDoc: PDFDocument, overlays: Form31Overlay[
     } else {
       context.direction = overlay.direction ?? "rtl";
       context.textAlign = overlay.alignment ?? "center";
+      const isInlineDate = /^\d{4}\/\d{2}\/\d{2}$/.test(normalizeDigits(overlay.value));
+      // خط Sans يجعل الشرطة المائلة في التاريخ واضحة، مع الاحتفاظ بالأرقام العربية.
+      const fontFamily = isInlineDate ? "Arial, sans-serif" : "TaaminForm31Arabic";
       let size = Math.min(15, Math.max(10.5, overlay.height * 0.82));
-      context.font = `${size * scale}px TaaminForm31Arabic`;
+      context.font = `${isInlineDate ? 600 : 400} ${size * scale}px ${fontFamily}`;
       const maxWidth = Math.max(8, (overlay.width - 4) * scale);
       while (size > 7 && context.measureText(value).width > maxWidth) {
         size -= 0.5;
-        context.font = `${size * scale}px TaaminForm31Arabic`;
+        context.font = `${isInlineDate ? 600 : 400} ${size * scale}px ${fontFamily}`;
       }
       const inset = 2 * scale;
       const textX = overlay.alignment === "right" ? canvas.width - inset
@@ -506,22 +508,12 @@ export function buildForm31Overlays(record: PersonRecord, pageWidth: number, pag
       value: digits, boxCount: anchor.boxCount, direction: "ltr", alignment: "center",
     });
   }
-  for (const { source, parts } of FORM31_DATE_ANCHORS) {
-    const match = normalizeDigits(record[source]).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) continue;
-    // «20» مطبوعة مسبقًا قبل خانتَي السنة، فتُكتب خانتان فقط لكل جزء.
-    const values = [match[1].slice(-2), match[2], match[3]];
-    parts.forEach((anchor, index) => overlays.push({
-      ...toPdfLibRect(anchor, pageWidth, pageHeight, rotation),
-      value: values[index], boxCount: 2, direction: "ltr", alignment: "center",
-    }));
-  }
   for (const { source, anchor } of FORM31_INLINE_DATE_ANCHORS) {
     const match = normalizeDigits(record[source]).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) continue;
     overlays.push({
       ...toPdfLibRect(anchor, pageWidth, pageHeight, rotation),
-      value: `${match[3]}/${match[2]}/${match[1]}`,
+      value: `${match[1]}/${match[2]}/${match[3]}`,
       direction: "ltr",
       alignment: "right",
     });
@@ -680,4 +672,3 @@ export async function createMergedPdf(records: PersonRecord[], template: Templat
   }
   return merged.save({ useObjectStreams: false });
 }
-

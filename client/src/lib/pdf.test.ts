@@ -44,15 +44,12 @@ describe("نموذج 31 overlay map", () => {
     expect(byKey("29501010123456")[0].boxCount).toBe(14);
     expect(byKey("29001010123456")).toHaveLength(1);
     expect(byKey("29001010123456")[0].boxCount).toBe(14);
-    // تاريخا الإصابة والتحرير موزعان على خانات، أما تاريخا الإجازة فيظهران
-    // متصلين بجوار العنوان بترتيب يوم/شهر/سنة.
-    expect(overlays.filter((overlay) => overlay.value === "26")).toHaveLength(2);
-    expect(overlays.filter((overlay) => overlay.value === "26").every((overlay) => overlay.boxCount === 2)).toBe(true);
-    expect(overlays.filter((overlay) => overlay.value === "09")).toHaveLength(1);
-    expect(byKey("14")).toHaveLength(1);
-    expect(byKey("15/09/2026")).toHaveLength(1);
-    expect(byKey("29/09/2026")).toHaveLength(1);
-    expect(byKey("10")).toHaveLength(1);
+    // التواريخ الأربعة تظهر متصلة بجوار العنوان بصيغة سنة/شهر/يوم.
+    expect(byKey("2026/09/14")).toHaveLength(1);
+    expect(byKey("2026/09/15")).toHaveLength(1);
+    expect(byKey("2026/09/29")).toHaveLength(1);
+    expect(byKey("2026/10/01")).toHaveLength(1);
+    expect(overlays.filter((overlay) => /^2026\//.test(overlay.value)).every((overlay) => !overlay.boxCount)).toBe(true);
     // الرقم التأميني يظهر في الشبكة العلوية وشبكة المؤمن عليه
     expect(byKey("001234567").filter((overlay) => overlay.boxCount === 9)).toHaveLength(2);
     expect(byKey("نعم")).toHaveLength(1);
@@ -159,4 +156,3 @@ describe("official PDF field maps", () => {
     expect(merged.getPageCount()).toBe(2);
   });
 });
-

@@ -54,36 +54,15 @@ export const FORM31_BOX_ANCHORS: Array<{ id: string; source: keyof PersonRecord;
 ];
 
 /**
- * شرحات التواريخ المطبوعة (سنة / شهر / يوم) استُخرجت من مواضع الشرطات «/»
- * والنقطتين وكلمة «20» المطبوعة، لأن النموذج لا يحتوي خانات أصلية لها.
- * ترتيب الشرحات في المصفوفة: [سنة، شهر، يوم] — وهذا هو ترتيب السطر المطبوع.
- */
-export const FORM31_DATE_ANCHORS: Array<{ source: keyof PersonRecord; parts: [TopAnchor, TopAnchor, TopAnchor] }> = [
-  {
-    source: "injuryDate",
-    parts: [
-      { x0: 453.2, y0: 416.02, x1: 467.07, y1: 436.66, boxCount: 2 },
-      { x0: 475.63, y0: 416.02, x1: 492.26, y1: 436.66, boxCount: 2 },
-      { x0: 500.82, y0: 416.02, x1: 508.84, y1: 436.66, boxCount: 2 },
-    ],
-  },
-  {
-    source: "releaseDate",
-    parts: [
-      { x0: 473.99, y0: 601.21, x1: 487.71, y1: 621.85, boxCount: 2 },
-      { x0: 496.27, y0: 601.21, x1: 510.02, y1: 621.85, boxCount: 2 },
-      { x0: 518.58, y0: 601.21, x1: 526.72, y1: 621.85, boxCount: 2 },
-    ],
-  },
-];
-
-/**
- * تاريخا الإجازة يُكتبان كنص متصل بجوار العنوان، يوم/شهر/سنة، بدل توزيع
- * أجزائهما على ثلاث مساحات متباعدة يصعب قراءتها في النسخة المطبوعة.
+ * كل تواريخ النموذج تُكتب كنص متصل بجوار العنوان. القيمة المخزنة هي
+ * YYYY-MM-DD، ويُحافظ العرض على الترتيب المطلوب YYYY/MM/DD من اليسار لليمين؛
+ * وبعد تحويل الأرقام تصبح مثل: ٢٠٢٦/٠١/٣٠.
  */
 export const FORM31_INLINE_DATE_ANCHORS: Array<{ source: keyof PersonRecord; anchor: TopAnchor }> = [
-  { source: "sickLeaveStartDate", anchor: { x0: 342, y0: 443.35, x1: 434.01, y1: 463.99 } },
-  { source: "sickLeaveEndDate", anchor: { x0: 70, y0: 447.46, x1: 186.87, y1: 468.1 } },
+  { source: "injuryDate", anchor: { x0: 406, y0: 416.02, x1: 502, y1: 436.66 } },
+  { source: "sickLeaveStartDate", anchor: { x0: 323, y0: 447, x1: 427, y1: 468 } },
+  { source: "sickLeaveEndDate", anchor: { x0: 58, y0: 451, x1: 179, y1: 472 } },
+  { source: "releaseDate", anchor: { x0: 418, y0: 601.21, x1: 519, y1: 621.85 } },
 ];
 
 export type Form31Rect = { x: number; y: number; width: number; height: number };
@@ -166,7 +145,6 @@ export function form31DisplayValue(key: keyof PersonRecord, record: PersonRecord
 export const FORM31_FIELDS: Array<keyof PersonRecord> = [
   ...(Object.keys(FORM31_TEXT_ANCHORS) as Array<keyof PersonRecord>),
   ...FORM31_BOX_ANCHORS.map((item) => item.source),
-  ...FORM31_DATE_ANCHORS.map((item) => item.source),
   ...FORM31_INLINE_DATE_ANCHORS.map((item) => item.source),
 ];
 
@@ -176,4 +154,3 @@ export function form31FileName(record: PersonRecord, index = 1) {
   const identity = normalizeDigits(record.insuranceNumber || record.nationalId).replace(/\D/g, "").slice(-10);
   return `نموذج31-${person || "سجل"}-${identity || String(index).padStart(3, "0")}-${String(index).padStart(3, "0")}.pdf`;
 }
-
