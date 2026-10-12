@@ -6,6 +6,7 @@ import { normalizeDigits, normalizeText, type PersonRecord, type TemplateId } fr
 import {
   FORM31_BOX_ANCHORS,
   FORM31_DATE_ANCHORS,
+  FORM31_INLINE_DATE_ANCHORS,
   FORM31_TEXT_ANCHORS,
   form31DisplayValue,
   toPdfLibRect,
@@ -515,6 +516,16 @@ export function buildForm31Overlays(record: PersonRecord, pageWidth: number, pag
       value: values[index], boxCount: 2, direction: "ltr", alignment: "center",
     }));
   }
+  for (const { source, anchor } of FORM31_INLINE_DATE_ANCHORS) {
+    const match = normalizeDigits(record[source]).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) continue;
+    overlays.push({
+      ...toPdfLibRect(anchor, pageWidth, pageHeight, rotation),
+      value: `${match[3]}/${match[2]}/${match[1]}`,
+      direction: "ltr",
+      alignment: "right",
+    });
+  }
   return overlays;
 }
 
@@ -669,3 +680,4 @@ export async function createMergedPdf(records: PersonRecord[], template: Templat
   }
   return merged.save({ useObjectStreams: false });
 }
+

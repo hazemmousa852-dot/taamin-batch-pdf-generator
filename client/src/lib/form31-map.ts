@@ -68,22 +68,6 @@ export const FORM31_DATE_ANCHORS: Array<{ source: keyof PersonRecord; parts: [To
     ],
   },
   {
-    source: "sickLeaveStartDate",
-    parts: [
-      { x0: 348.75, y0: 443.35, x1: 374.75, y1: 463.99, boxCount: 2 },
-      { x0: 383.81, y0: 443.35, x1: 408.93, y1: 463.99, boxCount: 2 },
-      { x0: 417.49, y0: 443.35, x1: 434.01, y1: 463.99, boxCount: 2 },
-    ],
-  },
-  {
-    source: "sickLeaveEndDate",
-    parts: [
-      { x0: 76.42, y0: 447.46, x1: 102.42, y1: 468.1, boxCount: 2 },
-      { x0: 111.48, y0: 447.46, x1: 153.39, y1: 468.1, boxCount: 2 },
-      { x0: 161.95, y0: 447.46, x1: 186.87, y1: 468.1, boxCount: 2 },
-    ],
-  },
-  {
     source: "releaseDate",
     parts: [
       { x0: 473.99, y0: 601.21, x1: 487.71, y1: 621.85, boxCount: 2 },
@@ -91,6 +75,15 @@ export const FORM31_DATE_ANCHORS: Array<{ source: keyof PersonRecord; parts: [To
       { x0: 518.58, y0: 601.21, x1: 526.72, y1: 621.85, boxCount: 2 },
     ],
   },
+];
+
+/**
+ * تاريخا الإجازة يُكتبان كنص متصل بجوار العنوان، يوم/شهر/سنة، بدل توزيع
+ * أجزائهما على ثلاث مساحات متباعدة يصعب قراءتها في النسخة المطبوعة.
+ */
+export const FORM31_INLINE_DATE_ANCHORS: Array<{ source: keyof PersonRecord; anchor: TopAnchor }> = [
+  { source: "sickLeaveStartDate", anchor: { x0: 342, y0: 443.35, x1: 434.01, y1: 463.99 } },
+  { source: "sickLeaveEndDate", anchor: { x0: 70, y0: 447.46, x1: 186.87, y1: 468.1 } },
 ];
 
 export type Form31Rect = { x: number; y: number; width: number; height: number };
@@ -174,6 +167,7 @@ export const FORM31_FIELDS: Array<keyof PersonRecord> = [
   ...(Object.keys(FORM31_TEXT_ANCHORS) as Array<keyof PersonRecord>),
   ...FORM31_BOX_ANCHORS.map((item) => item.source),
   ...FORM31_DATE_ANCHORS.map((item) => item.source),
+  ...FORM31_INLINE_DATE_ANCHORS.map((item) => item.source),
 ];
 
 /** اسم ملف PDF آمن لنموذج 31. */
@@ -182,3 +176,4 @@ export function form31FileName(record: PersonRecord, index = 1) {
   const identity = normalizeDigits(record.insuranceNumber || record.nationalId).replace(/\D/g, "").slice(-10);
   return `نموذج31-${person || "سجل"}-${identity || String(index).padStart(3, "0")}-${String(index).padStart(3, "0")}.pdf`;
 }
+
