@@ -374,6 +374,20 @@ function isValidDate(value: string) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
+/** يحوّل التاريخ الداخلي YYYY-MM-DD إلى الصيغة الظاهرة في الإدخال اليدوي. */
+export function formatDateForManualInput(value: string) {
+  const match = normalizeDigits(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : normalizeDigits(value);
+}
+
+/** يقرأ يوم/شهر/سنة ويعيد الصيغة الداخلية، أو null عند عدم اكتمال/صحة التاريخ. */
+export function parseManualDateInput(value: string) {
+  const match = normalizeDigits(value).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const iso = `${match[3]}-${match[2]}-${match[1]}`;
+  return isValidDate(iso) ? iso : null;
+}
+
 export function validateRecord(record: PersonRecord, template: TemplateId = "s1"): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   // All fields are optional. Validate only supplied values.
@@ -527,3 +541,4 @@ export function mapExcelRow(row: Record<string, unknown>): PersonRecord {
 export function displayValue(value: string | undefined, empty = "—") {
   return value?.trim() ? value : empty;
 }
+

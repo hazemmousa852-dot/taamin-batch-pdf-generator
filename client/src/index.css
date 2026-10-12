@@ -274,6 +274,12 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
 .field-shell input:hover, .field-shell select:hover { border-color: #c9c3b8; }
 .field-shell input:focus, .field-shell select:focus { border-color: #c5793b; box-shadow: 0 0 0 3px rgba(197,121,59,.09); background: #fffdfa; outline: 0; }
 .field-shell input::placeholder { color: #b2b6b0; }
+.date-field-control { position: relative; }
+.date-field-control > input:first-child { padding-inline-end: 36px; }
+.date-picker-button { position: absolute; inset-inline-end: 8px; top: 50%; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: #68756c; display: grid; place-items: center; transform: translateY(-50%); cursor: pointer; }
+.date-picker-button:hover { color: #b16c37; }
+.date-picker-button:focus-visible { outline: 2px solid #c5793b; outline-offset: 2px; border-radius: 4px; }
+.date-native-picker { position: absolute; width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; inset-inline-end: 18px; bottom: 0; padding: 0 !important; border: 0 !important; }
 .field-shell select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #89938c 50%), linear-gradient(135deg, #89938c 50%, transparent 50%); background-position: calc(100% - 14px) 17px, calc(100% - 10px) 17px; background-size: 4px 4px, 4px 4px; background-repeat: no-repeat; }
 .editor-footer { margin-top: 27px; padding-top: 15px; border-top: 1px solid #e4e0d8; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .editor-footer > span { display: flex; align-items: center; gap: 6px; color: #8c978f; font-size: 10px; }
@@ -407,3 +413,4 @@ input[type="checkbox"] { accent-color: #c5793b; width: 14px; height: 14px; }
 #record-editor { scroll-margin-top: 180px; }
 .record-edit-button { display: block; margin-top: 8px; padding: 6px 10px; border: 1px solid #c5793b; border-radius: 6px; background: #fff8ee; color: #704019; font-size: 12px; cursor: pointer; }
 .record-edit-button:focus-visible { outline: 2px solid #26322c; outline-offset: 3px; }
+

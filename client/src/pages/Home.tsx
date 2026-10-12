@@ -11,6 +11,7 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   Building2,
+  CalendarDays,
   Check,
   ChevronDown,
   CircleHelp,
@@ -57,9 +58,11 @@ import {
   FORM31_LEGACY_SHEET_NAMES,
   FORM31_SHEET_NAME,
   filledCount,
+  formatDateForManualInput,
   makeEmptyRecord,
   mapExcelRow,
   normalizeDigits,
+  parseManualDateInput,
   recordStatus,
   relevantFieldCount,
   validateRecord,
@@ -345,6 +348,60 @@ function statusClass(status: ReturnType<typeof recordStatus>) {
   if (status === "جاهز") return "status-ready";
   if (status === "ناقص") return "status-warning";
   return "status-draft";
+}
+
+function DateFieldInput({ id, value, onChange, placeholder, invalid }: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  invalid?: boolean;
+}) {
+  const [displayValue, setDisplayValue] = useState(() => formatDateForManualInput(value));
+  const pickerRef = useRef<HTMLInputElement>(null);
+  useEffect(() => setDisplayValue(formatDateForManualInput(value)), [value]);
+
+  function handleTextChange(next: string) {
+    const digits = normalizeDigits(next).replace(/\D/g, "").slice(0, 8);
+    const masked = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("/");
+    setDisplayValue(masked);
+    if (!masked) onChange("");
+    const parsed = parseManualDateInput(masked);
+    if (parsed) onChange(parsed);
+  }
+
+  function openPicker() {
+    const picker = pickerRef.current;
+    if (!picker) return;
+    if (typeof picker.showPicker === "function") picker.showPicker();
+    else picker.click();
+  }
+
+  return <div className="date-field-control">
+    <Input
+      id={id}
+      type="text"
+      inputMode="numeric"
+      value={displayValue}
+      onChange={(event) => handleTextChange(event.target.value)}
+      placeholder={placeholder || "يوم/شهر/سنة"}
+      dir="ltr"
+      maxLength={10}
+      aria-invalid={invalid || (displayValue.length === 10 && !parseManualDateInput(displayValue))}
+    />
+    <button type="button" className="date-picker-button" onClick={openPicker} aria-label="اختيار التاريخ من التقويم">
+      <CalendarDays size={15} />
+    </button>
+    <input
+      ref={pickerRef}
+      className="date-native-picker"
+      type="date"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      tabIndex={-1}
+      aria-hidden="true"
+    />
+  </div>;
 }
 
 export default function Home() {
@@ -818,7 +875,7 @@ export default function Home() {
                   return <div key={group.id} className={`field-group ${visible ? "field-group-visible" : ""}`}>
                     <div className="field-group-heading"><span className="field-group-icon"><Icon size={17} /></span><div><h3>{group.title}</h3><p>{group.note}</p></div></div>
                     <div className="fields-grid">
-                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const isOptional = true; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}{isOptional && <span className="optional-label">اختياري</span>}</Label>{options ? <><Input id={field.key} list={`${field.key}-options`} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder="اختياري — اختر أو اكتب" /><datalist id={`${field.key}-options`}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</datalist></> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" || field.type === "date" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && <span className="field-error">{issue}</span>}</div>; })}
+                      {group.fields.map((field) => { const issue = issueByField.get(field.key); const isIdentifier = IDENTIFIER_FIELDS.has(field.key); const options = SELECT_OPTIONS[field.key]; const isOptional = true; return <div className={`field-shell ${field.wide ? "field-wide" : ""}`} key={field.key}><Label htmlFor={field.key}>{field.label}{isOptional && <span className="optional-label">اختياري</span>}</Label>{options ? <><Input id={field.key} list={`${field.key}-options`} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder="اختياري — اختر أو اكتب" /><datalist id={`${field.key}-options`}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</datalist></> : field.type === "date" ? <DateFieldInput id={field.key} value={activeRecord[field.key]} onChange={(value) => updateField(field.key, value)} placeholder="يوم/شهر/سنة" invalid={Boolean(issue)} /> : <Input id={field.key} type={isIdentifier ? "text" : field.type || "text"} inputMode={isIdentifier ? "numeric" : undefined} value={activeRecord[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} dir={field.key === "email" || isIdentifier || field.type === "number" ? "ltr" : "rtl"} aria-invalid={Boolean(issue)} />}{issue && <span className="field-error">{issue}</span>}</div>; })}
                     </div>
                   </div>;
                 })}
@@ -840,3 +897,4 @@ export default function Home() {
     </div>
   );
 }
+

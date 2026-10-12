@@ -456,7 +456,7 @@ async function paintForm31Overlays(pdfDoc: PDFDocument, overlays: Form31Overlay[
       context.textAlign = "center";
       context.font = `700 ${size * scale}px TaaminForm31Arabic`;
       digits.forEach((digit, index) =>
-        context.fillText(digit, (firstCell + index + 0.5) * cellWidth, canvas.height * 0.55, cellWidth * 0.92),
+        context.fillText(digit, (firstCell + index + 0.5) * cellWidth, canvas.height * 0.5, cellWidth * 0.92),
       );
     } else {
       context.direction = overlay.direction ?? "rtl";
@@ -672,3 +672,4 @@ export async function createMergedPdf(records: PersonRecord[], template: Templat
   }
   return merged.save({ useObjectStreams: false });
 }
+

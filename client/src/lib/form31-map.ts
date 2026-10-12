@@ -59,10 +59,10 @@ export const FORM31_BOX_ANCHORS: Array<{ id: string; source: keyof PersonRecord;
  * وبعد تحويل الأرقام تصبح مثل: ٢٠٢٦/٠١/٣٠.
  */
 export const FORM31_INLINE_DATE_ANCHORS: Array<{ source: keyof PersonRecord; anchor: TopAnchor }> = [
-  { source: "injuryDate", anchor: { x0: 406, y0: 416.02, x1: 502, y1: 436.66 } },
-  { source: "sickLeaveStartDate", anchor: { x0: 323, y0: 447, x1: 427, y1: 468 } },
-  { source: "sickLeaveEndDate", anchor: { x0: 58, y0: 451, x1: 179, y1: 472 } },
-  { source: "releaseDate", anchor: { x0: 418, y0: 601.21, x1: 519, y1: 621.85 } },
+  { source: "injuryDate", anchor: { x0: 406, y0: 419.02, x1: 502, y1: 439.66 } },
+  { source: "sickLeaveStartDate", anchor: { x0: 323, y0: 450, x1: 427, y1: 471 } },
+  { source: "sickLeaveEndDate", anchor: { x0: 58, y0: 454, x1: 179, y1: 475 } },
+  { source: "releaseDate", anchor: { x0: 418, y0: 604.21, x1: 519, y1: 624.85 } },
 ];
 
 export type Form31Rect = { x: number; y: number; width: number; height: number };
@@ -154,3 +154,4 @@ export function form31FileName(record: PersonRecord, index = 1) {
   const identity = normalizeDigits(record.insuranceNumber || record.nationalId).replace(/\D/g, "").slice(-10);
   return `نموذج31-${person || "سجل"}-${identity || String(index).padStart(3, "0")}-${String(index).padStart(3, "0")}.pdf`;
 }
+

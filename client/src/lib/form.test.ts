@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   carryForwardShared, FORM31_SHEET_COLUMNS, FORM31_SHEET_NAME,
-  makeEmptyRecord, mapExcelRow, normalizeDigits, recordStatus, validateRecord,
+  formatDateForManualInput, makeEmptyRecord, mapExcelRow, normalizeDigits,
+  parseManualDateInput, recordStatus, validateRecord,
 } from "./form";
 
 function validRecord() {
@@ -19,6 +20,13 @@ function validRecord() {
 }
 
 describe("Arabic form validation", () => {
+  it("formats and parses manual dates as day/month/year", () => {
+    expect(formatDateForManualInput("2026-01-30")).toBe("30/01/2026");
+    expect(parseManualDateInput("30/01/2026")).toBe("2026-01-30");
+    expect(parseManualDateInput("٣٠/٠١/٢٠٢٦")).toBe("2026-01-30");
+    expect(parseManualDateInput("31/02/2026")).toBeNull();
+  });
+
   it("allows blank and partial forms for all three templates", () => {
     for (const template of ["s1", "s2", "s6"] as const) {
       expect(validateRecord(makeEmptyRecord(), template)).toEqual([]);
@@ -150,3 +158,4 @@ describe("Arabic form validation", () => {
     expect(validateRecord({ ...record, basicWage: "2500" }, "s2")).toEqual([]);
   });
 });
+
