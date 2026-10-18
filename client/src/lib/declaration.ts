@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { normalizeDigits, type PersonRecord } from "./form";
 
@@ -9,7 +9,7 @@ export type Declaration = Record<string, string>;
 export function formatTaxRegistration(value: string) {
   const normalized = normalizeDigits(value).trim();
   if (!normalized) return "";
-  if (!/^(?:\d{9}|\d{3}\s*-\s*\d{3}\s*-\s*\d{3})$/.test(normalized)) throw new Error("رقم التسجيل الضريبي يجب أن يكون ٩ أرقام بصيغة 000-000-000 أو بدون شرطات.");
+  if (!/^(?:\d{9}|\d{3}\s*-\s*\d{3}\s*-\s*\d{3})$/.test(normalized)) throw new Error("رقم التسجيل الضريبي يجب أن يكون ٩ أرقام بصيغة مثل 123-456-789 أو بدون شرطات.");
   const digits = normalized.replace(/\s|-/g, "");
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
@@ -21,7 +21,7 @@ export function addDeclarationSheet(workbook: XLSX.WorkBook) {
   for (let r = 1; r <= 100; r++) for (let c = 0; c < DECLARATION_HEADERS.length; c++) sheet[XLSX.utils.encode_cell({r,c})] = { t: "s", v: "", z: "@" };
   sheet["!ref"] = "A1:P101";
   XLSX.utils.book_append_sheet(workbook, sheet, DECLARATION_SHEET);
-  const instructions = XLSX.utils.aoa_to_sheet([["تعليمات إقرار صاحب العمل"], ["اكتب سطرًا واحدًا لكل منشأة في ورقة إقرار صاحب العمل. لا تكرر البيانات لكل عامل."], ["رقم المنشأة هو مفتاح الربط. احفظ الأرقام كنص للحفاظ على الأصفار في أول الرقم."], ["التاريخ بصيغة يوم/شهر/سنة. اترك رقم المركز الرئيسي فارغًا إذا لم تكن المنشأة فرعًا."], ["من تبويب س٢ استخدم زر تحميل إقرار صاحب العمل. ملفه منفصل عن س٢ ويشمل تعليمات النموذج."], ["رقم التسجيل الضريبي يُكتب كنص بصيغة 000-000-000. تُقبل الأرقام العربية والأرقام التسعة بدون شرطات أيضًا، وتُطبع الأرقام فقط في خانات الإقرار."], ["التوقيع والختم وبيانات استلام مكتب التأمينات تُستكمل يدويًا."]]);
+  const instructions = XLSX.utils.aoa_to_sheet([["تعليمات إقرار صاحب العمل"], ["اكتب سطرًا واحدًا لكل منشأة في ورقة إقرار صاحب العمل. لا تكرر البيانات لكل عامل."], ["رقم المنشأة هو مفتاح الربط. احفظ الأرقام كنص للحفاظ على الأصفار في أول الرقم."], ["التاريخ بصيغة يوم/شهر/سنة. اترك رقم المركز الرئيسي فارغًا إذا لم تكن المنشأة فرعًا."], ["من تبويب س٢ استخدم زر تحميل إقرار صاحب العمل. ملفه منفصل عن س٢ ويشمل تعليمات النموذج."], ["رقم التسجيل الضريبي يقبل أي ٩ أرقام، مثل 123-456-789. الأصفار مجرد مثال للتنسيق. يُعرض الرقم بالشرطات في الإقرار، وتُقبل الأرقام العربية أو الإدخال بدون شرطات أيضًا."], ["التوقيع والختم وبيانات استلام مكتب التأمينات تُستكمل يدويًا."]]);
   instructions["!cols"] = [{wch: 110}];
   XLSX.utils.book_append_sheet(workbook, instructions, "تعليمات الإقرار");
 }
@@ -94,7 +94,15 @@ export async function createDeclarationPdf(data: Declaration) {
   text("تليفون مقدم الطلب", 40, 228, 295); boxes("الرقم التأميني لمقدم الطلب",445,207,255,9);
   boxes("الرقم القومي لمقدم الطلب",297,248,396,14);
   text("اسم المنشأة",423,344,292); boxes("رقم المنشأة",91,328,228,8);
-  boxes("رقم المركز الرئيسي",244,362,228,8); boxes("رقم التسجيل الضريبي",375,397,255,9);
+  boxes("رقم المركز الرئيسي",244,362,228,8);
+  const taxNumber = formatTaxRegistration(data["رقم التسجيل الضريبي"] || "");
+  if (taxNumber) {
+    // Keep the outer border, replacing the nine inner cells with one formatted value.
+    page.drawRectangle({x: 376 * scale, y: page.getHeight() - 424 * scale, width: 253 * scale, height: 26 * scale, color: rgb(1, 1, 1)});
+    const taxFont = await pdf.embedFont(StandardFonts.Helvetica);
+    const size = 16 * scale;
+    page.drawText(taxNumber, {x: 502.5 * scale - taxFont.widthOfTextAtSize(taxNumber, size) / 2, y: page.getHeight() - 417 * scale, size, font: taxFont});
+  }
   boxes("رقم السجل التجاري",375,428,255,9); boxes("رقم السجل التجاري الموحد",173,459,418,15);
   text("اسم صاحب العمل أو المدير المسؤول ثلاثي",327,557,390); text("صفة صاحب العمل أو المدير المسؤول",42,557,230);
   text("اسم صاحب العمل أو المدير المسؤول ثلاثي",485,782,232); text("صفة صاحب العمل أو المدير المسؤول",489,815,258);

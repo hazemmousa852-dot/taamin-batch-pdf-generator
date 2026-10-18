@@ -20,6 +20,8 @@ describe("employer declarations", () => {
     expect(readDeclarations(XLSX.utils.book_new())).toEqual([]);
   });
   it("accepts formatted tax numbers, preserves zeros and normalizes Excel input", () => {
+    expect(formatTaxRegistration("123456789")).toBe("123-456-789");
+    expect(formatTaxRegistration("987-654-321")).toBe("987-654-321");
     expect(formatTaxRegistration("000-000-000")).toBe("000-000-000");
     expect(formatTaxRegistration("٠٠٠-٠٠٠-٠٠١")).toBe("000-000-001");
     expect(formatTaxRegistration("000000001")).toBe("000-000-001");
