@@ -1,8 +1,7 @@
 import * as XLSX from "xlsx";
 import { PDFDocument } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { toPdfText } from "./pdf";
-import { normalizeDigits } from "./form";
+import { normalizeDigits, type PersonRecord } from "./form";
 
 export const DECLARATION_SHEET = "إقرار صاحب العمل";
 export const DECLARATION_HEADERS = ["رقم المنشأة", "اسم المنشأة", "المكتب", "مقدم الطلب", "صفة مقدم الطلب", "تليفون مقدم الطلب", "الرقم التأميني لمقدم الطلب", "الرقم القومي لمقدم الطلب", "رقم المركز الرئيسي", "رقم التسجيل الضريبي", "رقم السجل التجاري", "رقم السجل التجاري الموحد", "اسم صاحب العمل أو المدير المسؤول ثلاثي", "صفة صاحب العمل أو المدير المسؤول", "تليفون صاحب العمل أو المدير المسؤول", "تاريخ تحرير الإقرار (DD/MM/YYYY)"];
@@ -46,6 +45,16 @@ export function readDeclarations(workbook: XLSX.WorkBook): Declaration[] {
   }
   return Array.from(unique.values());
 }
+export function validateDeclarationEstablishments(declarations: Declaration[], records: PersonRecord[]) {
+  const numberKey = (value: string) => normalizeDigits(value).replace(/\s/g, "").replace(/^0+(?=\d)/, "");
+  for (const declaration of declarations) {
+    const key = numberKey(declaration["رقم المنشأة"]);
+    const matches = records.filter(record => numberKey(record.establishmentNumber) === key);
+    if (!matches.length) throw new Error(`رقم المنشأة ${declaration["رقم المنشأة"]} في الإقرار غير موجود في بيانات س٢. راجع ورقتي الإكسيل.`);
+    const nameKey = (value: string) => value.trim().replace(/\s+/g, " ");
+    if (matches.some(record => record.establishmentName && nameKey(record.establishmentName) !== nameKey(declaration["اسم المنشأة"]))) throw new Error(`اسم المنشأة ${declaration["رقم المنشأة"]} مختلف بين الإقرار وبيانات س٢. وحّد الاسم في ورقتي الإكسيل.`);
+  }
+}
 export async function createDeclarationPdf(data: Declaration) {
   const base = import.meta.env?.BASE_URL ?? "/";
   const load = async (name: string) => { const r = await fetch(`${base}assets/${name}`); if (!r.ok) throw new Error("تعذر تحميل قالب الإقرار أو الخط"); return r.arrayBuffer(); };
@@ -55,8 +64,11 @@ export async function createDeclarationPdf(data: Declaration) {
   const font = await pdf.embedFont(fontBytes);
   const page = pdf.getPages()[0];
   const scale = page.getWidth() / 849;
+  const overlays: Array<{value: string; x: number; y: number; width: number; max: number}> = [];
   const text = (header: string, x: number, y: number, width: number, max = 13) => {
-    const value = toPdfText(data[header] || ""); if (!value) return;
+    const value = (data[header] || ""); if (!value) return;
+    overlays.push({value, x, y, width, max});
+    if (typeof document !== "undefined") return;
     const size = Math.min(max * scale, width * scale / Math.max(font.widthOfTextAtSize(value, 1), 1));
     page.drawText(value, {x: (x + width) * scale - font.widthOfTextAtSize(value, size), y: page.getHeight() - y * scale, size, font});
   };
@@ -84,6 +96,32 @@ export async function createDeclarationPdf(data: Declaration) {
       const size = 13 * scale;
       page.drawText(value, {x: (x + width / 2) * scale - font.widthOfTextAtSize(value,size)/2, y: page.getHeight()-881*scale, size, font});
     }
+  }
+  if (typeof document !== "undefined") {
+    const face = new FontFace("DeclarationArabic", fontBytes);
+    await face.load(); document.fonts.add(face);
+    try {
+      for (const overlay of overlays) {
+        const canvas = document.createElement("canvas");
+        const resolution = 3;
+        const width = overlay.width * scale;
+        const fontSize = overlay.max * scale;
+        const height = fontSize * 2.5;
+        canvas.width = Math.ceil(width * resolution); canvas.height = Math.ceil(height * resolution);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("تعذر تجهيز النص العربي للإقرار");
+        ctx.scale(resolution, resolution);
+        ctx.direction = "rtl"; ctx.textAlign = "right";
+        ctx.font = `${fontSize}px DeclarationArabic`;
+        const fitted = Math.min(fontSize, fontSize * (width - 4) / Math.max(ctx.measureText(overlay.value).width, 1));
+        if (fitted < 6) throw new Error(`النص طويل جدًا لخانة الإقرار: ${overlay.value}. اختصره للحفاظ على وضوح الطباعة.`);
+        ctx.font = `${fitted}px DeclarationArabic`;
+        // Match the PDF baseline; leave room above and below for Arabic marks.
+        ctx.fillText(overlay.value, width - 2, fontSize * 1.5);
+        const png = await pdf.embedPng(canvas.toDataURL("image/png"));
+        page.drawImage(png, {x: overlay.x * scale, y: page.getHeight() - (overlay.y - 3) * scale - fontSize, width, height});
+      }
+    } finally { document.fonts.delete(face); }
   }
   return pdf.save();
 }

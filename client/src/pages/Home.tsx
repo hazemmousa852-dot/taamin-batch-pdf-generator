@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
-import { addDeclarationSheet, readDeclarations, createDeclarationPdf, type Declaration } from "@/lib/declaration";
+import { addDeclarationSheet, readDeclarations, validateDeclarationEstablishments, createDeclarationPdf, type Declaration } from "@/lib/declaration";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -587,7 +587,10 @@ export default function Home() {
         toast.error("لم نجد صفوفًا قابلة للاستيراد", { description: "تأكد من أن الصف الأول يحتوي على أسماء الأعمدة." });
         return;
       }
-      if (template === "s2") setDeclarations(nextDeclarations);
+      if (template === "s2") {
+        validateDeclarationEstablishments(nextDeclarations, imported);
+        setDeclarations(nextDeclarations);
+      }
       setRecords(imported);
       setSelectedIds(new Set(imported.map((record) => record.id)));
       const firstIncomplete = imported.find((record) => validateRecord(record, template).length > 0);
@@ -611,6 +614,7 @@ export default function Home() {
     }
     setIsProcessing(true);
     try {
+      validateDeclarationEstablishments(declarations, s2Records);
       const files = await Promise.all(declarations.map(async d => ({name: `إقرار-صاحب-العمل-${d["رقم المنشأة"]}.pdf`, bytes: await createDeclarationPdf(d)})));
       if (files.length === 1) downloadBlob(files[0].bytes, files[0].name, "application/pdf");
       else {

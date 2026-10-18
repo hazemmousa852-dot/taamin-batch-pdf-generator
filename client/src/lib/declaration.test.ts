@@ -1,8 +1,9 @@
+import { makeEmptyRecord } from "./form";
 import { describe, it, expect, vi } from "vitest";
 import * as XLSX from "xlsx";
 import { readFileSync, writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import { addDeclarationSheet, readDeclarations, createDeclarationPdf, DECLARATION_SHEET, DECLARATION_HEADERS } from "./declaration";
+import { addDeclarationSheet, readDeclarations, createDeclarationPdf, DECLARATION_SHEET, DECLARATION_HEADERS, validateDeclarationEstablishments } from "./declaration";
 
 describe("employer declarations", () => {
   const data = Object.fromEntries(DECLARATION_HEADERS.map(h => [h, ""]));
@@ -17,6 +18,12 @@ describe("employer declarations", () => {
     wb.Sheets[DECLARATION_SHEET] = XLSX.utils.json_to_sheet([data,{...data,"اسم المنشأة":"مختلف"}]);
     expect(() => readDeclarations(wb)).toThrow("متعارضة");
     expect(readDeclarations(XLSX.utils.book_new())).toEqual([]);
+  });
+  it("checks the establishment number and name against S2", () => {
+    const record = {...makeEmptyRecord(), establishmentNumber: "00000001", establishmentName: "شركة الاختبار"};
+    expect(() => validateDeclarationEstablishments([data], [record])).not.toThrow();
+    expect(() => validateDeclarationEstablishments([data], [{...record, establishmentNumber: "00000002"}])).toThrow("غير موجود");
+    expect(() => validateDeclarationEstablishments([data], [{...record, establishmentName: "اسم مختلف"}])).toThrow("مختلف");
   });
   it("preserves the two-page source and fills Arabic and identifiers", async () => {
     vi.stubGlobal("fetch", async (url: string) => { const buffer = readFileSync(`client/public/assets/${url.split('/').pop()}`); return {ok:true, arrayBuffer:async()=>buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength)}; });
