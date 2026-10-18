@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
+import { addDeclarationSheet, readDeclarations, createDeclarationPdf, type Declaration } from "@/lib/declaration";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -531,6 +532,8 @@ export default function Home() {
     toast.success("تم حذف السجل");
   }
 
+  const [declarations, setDeclarations] = useState<Declaration[]>([]);
+
   async function handleExcel(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -538,6 +541,7 @@ export default function Home() {
     setIsProcessing(true);
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const nextDeclarations = template === "s2" ? readDeclarations(workbook) : [];
       // نموذج 31 يقرأ من ورقته الواحدة (ويقبل أسماء الأوراق الأقدم للتوافق)،
       // وباقي النماذج تقرأ من ورقة المؤمن عليهم. وإن كانت الورقة المفضّلة فارغة
       // نجرّب الورقة الأخرى قبل إعلان الفشل.
@@ -583,6 +587,7 @@ export default function Home() {
         toast.error("لم نجد صفوفًا قابلة للاستيراد", { description: "تأكد من أن الصف الأول يحتوي على أسماء الأعمدة." });
         return;
       }
+      if (template === "s2") setDeclarations(nextDeclarations);
       setRecords(imported);
       setSelectedIds(new Set(imported.map((record) => record.id)));
       const firstIncomplete = imported.find((record) => validateRecord(record, template).length > 0);
@@ -591,12 +596,31 @@ export default function Home() {
       setMode("bulk");
       const invalidCount = imported.filter((record) => validateRecord(record, template).length > 0).length;
       toast.success(`تم استيراد ${imported.length} سجل`, { description: invalidCount ? `${invalidCount} سجل يحتاج مراجعة قبل التصدير.` : "كل السجلات جاهزة للتصدير." });
-    } catch {
-      toast.error("تعذر قراءة ملف Excel", { description: "استخدم ملف .xlsx أو .xls سليمًا." });
+    } catch (error) {
+      toast.error("تعذر قراءة ملف Excel", { description: error instanceof Error ? error.message : "استخدم ملف .xlsx أو .xls سليمًا." });
     } finally {
       setIsProcessing(false);
       event.target.value = "";
     }
+  }
+
+  async function downloadDeclarations() {
+    if (!declarations.length) {
+      toast.error("بيانات الإقرار غير موجودة", { description: "نزّل قالب Excel الجديد، واملأ ورقة إقرار صاحب العمل بسطر واحد لكل منشأة، ثم ارفع الملف." });
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const files = await Promise.all(declarations.map(async d => ({name: `إقرار-صاحب-العمل-${d["رقم المنشأة"]}.pdf`, bytes: await createDeclarationPdf(d)})));
+      if (files.length === 1) downloadBlob(files[0].bytes, files[0].name, "application/pdf");
+      else {
+        const zip = new JSZip();
+        for (const file of files) zip.file(file.name, file.bytes);
+        downloadBlob(await zip.generateAsync({type: "uint8array"}), "إقرارات-أصحاب-العمل.zip", "application/zip");
+      }
+      toast.success(`تم تجهيز ${files.length} إقرار — إقرار واحد لكل منشأة`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تجهيز الإقرار"); }
+    finally { setIsProcessing(false); }
   }
 
   async function downloadTemplate() {
@@ -604,7 +628,9 @@ export default function Home() {
       const response = await fetch(`${import.meta.env.BASE_URL}assets/taamin-flexible-template.b64`);
       if (!response.ok) throw new Error("تعذر تحميل القالب");
       const bytes = Uint8Array.from(atob((await response.text()).trim()), (char) => char.charCodeAt(0));
-      downloadBlob(bytes, "قالب-التأمينات-مرن.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      const workbook = XLSX.read(bytes, { type: "array" });
+      addDeclarationSheet(workbook);
+      downloadBlob(XLSX.write(workbook, { type: "array", bookType: "xlsx" }), "قالب-التأمينات-مرن.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       toast.success("تم تنزيل القالب المرن — جميع البيانات اختيارية");
     } catch { toast.error("تعذر تنزيل القالب؛ حاول مرة أخرى"); }
   }
@@ -782,6 +808,7 @@ export default function Home() {
                   <Button variant="outline" className="button-outline workflow-action" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}><span className="workflow-action-number">2</span><CloudUpload size={16} /> رفع ملف Excel</Button>
                   <Button className="button-primary workflow-action" onClick={downloadAll} disabled={isProcessing}><span className="workflow-action-number">3</span>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل ملف س2 PDF مجمّع</Button>
                   <Button variant="outline" className="button-outline workflow-action" onClick={downloadS2Crm} disabled={isProcessing}><span className="workflow-action-number">4</span><FileSpreadsheet size={16} /> تجهيز س2 لمنظومة CRM</Button>
+                  <div><Button variant="outline" className="button-outline workflow-action" onClick={downloadDeclarations} disabled={isProcessing}><FileText size={16} /> تحميل إقرار صاحب العمل — الخاص بس٢</Button><p>خطاب تسليم بيان تحديث الأجور وإقرار صحة البيانات. ملف PDF منفصل، مرة واحدة لكل منشأة. املأ ورقة «إقرار صاحب العمل» في قالب Excel ثم ارفع الملف. التوقيع والختم يدويًا.</p></div>
                 </> : <>
                   <Button className="button-primary" onClick={downloadAll} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل PDF مجمّع</Button>
                   <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>
