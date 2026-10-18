@@ -6,6 +6,13 @@ import { normalizeDigits, type PersonRecord } from "./form";
 export const DECLARATION_SHEET = "إقرار صاحب العمل";
 export const DECLARATION_HEADERS = ["رقم المنشأة", "اسم المنشأة", "المكتب", "مقدم الطلب", "صفة مقدم الطلب", "تليفون مقدم الطلب", "الرقم التأميني لمقدم الطلب", "الرقم القومي لمقدم الطلب", "رقم المركز الرئيسي", "رقم التسجيل الضريبي", "رقم السجل التجاري", "رقم السجل التجاري الموحد", "اسم صاحب العمل أو المدير المسؤول ثلاثي", "صفة صاحب العمل أو المدير المسؤول", "تليفون صاحب العمل أو المدير المسؤول", "تاريخ تحرير الإقرار (DD/MM/YYYY)"];
 export type Declaration = Record<string, string>;
+export function formatTaxRegistration(value: string) {
+  const normalized = normalizeDigits(value).trim();
+  if (!normalized) return "";
+  if (!/^(?:\d{9}|\d{3}\s*-\s*\d{3}\s*-\s*\d{3})$/.test(normalized)) throw new Error("رقم التسجيل الضريبي يجب أن يكون ٩ أرقام بصيغة 000-000-000 أو بدون شرطات.");
+  const digits = normalized.replace(/\s|-/g, "");
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
 export function addDeclarationSheet(workbook: XLSX.WorkBook) {
   if (workbook.Sheets[DECLARATION_SHEET]) return;
   const sheet = XLSX.utils.aoa_to_sheet([DECLARATION_HEADERS]);
@@ -14,7 +21,7 @@ export function addDeclarationSheet(workbook: XLSX.WorkBook) {
   for (let r = 1; r <= 100; r++) for (let c = 0; c < DECLARATION_HEADERS.length; c++) sheet[XLSX.utils.encode_cell({r,c})] = { t: "s", v: "", z: "@" };
   sheet["!ref"] = "A1:P101";
   XLSX.utils.book_append_sheet(workbook, sheet, DECLARATION_SHEET);
-  const instructions = XLSX.utils.aoa_to_sheet([["تعليمات إقرار صاحب العمل"], ["اكتب سطرًا واحدًا لكل منشأة في ورقة إقرار صاحب العمل. لا تكرر البيانات لكل عامل."], ["رقم المنشأة هو مفتاح الربط. احفظ الأرقام كنص للحفاظ على الأصفار في أول الرقم."], ["التاريخ بصيغة يوم/شهر/سنة. اترك رقم المركز الرئيسي فارغًا إذا لم تكن المنشأة فرعًا."], ["من تبويب س٢ استخدم زر تحميل إقرار صاحب العمل. ملفه منفصل عن س٢ ويشمل تعليمات النموذج."], ["التوقيع والختم وبيانات استلام مكتب التأمينات تُستكمل يدويًا."]]);
+  const instructions = XLSX.utils.aoa_to_sheet([["تعليمات إقرار صاحب العمل"], ["اكتب سطرًا واحدًا لكل منشأة في ورقة إقرار صاحب العمل. لا تكرر البيانات لكل عامل."], ["رقم المنشأة هو مفتاح الربط. احفظ الأرقام كنص للحفاظ على الأصفار في أول الرقم."], ["التاريخ بصيغة يوم/شهر/سنة. اترك رقم المركز الرئيسي فارغًا إذا لم تكن المنشأة فرعًا."], ["من تبويب س٢ استخدم زر تحميل إقرار صاحب العمل. ملفه منفصل عن س٢ ويشمل تعليمات النموذج."], ["رقم التسجيل الضريبي يُكتب كنص بصيغة 000-000-000. تُقبل الأرقام العربية والأرقام التسعة بدون شرطات أيضًا، وتُطبع الأرقام فقط في خانات الإقرار."], ["التوقيع والختم وبيانات استلام مكتب التأمينات تُستكمل يدويًا."]]);
   instructions["!cols"] = [{wch: 110}];
   XLSX.utils.book_append_sheet(workbook, instructions, "تعليمات الإقرار");
 }
@@ -29,6 +36,7 @@ export function readDeclarations(workbook: XLSX.WorkBook): Declaration[] {
     const key = normalizeDigits(d["رقم المنشأة"]).replace(/\s/g, "");
     if (!/^\d{1,8}$/.test(key)) throw new Error("أدخل رقم المنشأة (حتى ٨ أرقام) لكل إقرار في ورقة إقرار صاحب العمل.");
     d["رقم المنشأة"] = key;
+    d["رقم التسجيل الضريبي"] = formatTaxRegistration(d["رقم التسجيل الضريبي"]);
     for (const required of ["اسم المنشأة", "المكتب", "مقدم الطلب", "صفة مقدم الطلب", "اسم صاحب العمل أو المدير المسؤول ثلاثي", "صفة صاحب العمل أو المدير المسؤول"]) {
       if (!d[required]) throw new Error(`أكمل ${required} في إقرار المنشأة ${key}`);
     }
@@ -73,7 +81,8 @@ export async function createDeclarationPdf(data: Declaration) {
     page.drawText(value, {x: (x + width) * scale - font.widthOfTextAtSize(value, size), y: page.getHeight() - y * scale, size, font});
   };
   const boxes = (header: string, x: number, top: number, width: number, count: number) => {
-    const value = normalizeDigits(data[header] || "").replace(/\s/g, "");
+    const raw = header === "رقم التسجيل الضريبي" ? formatTaxRegistration(data[header] || "").replace(/-/g, "") : data[header] || "";
+    const value = normalizeDigits(raw).replace(/\s/g, "");
     if (value && (!/^\d+$/.test(value) || value.length > count)) throw new Error(`راجع ${header}: أرقام فقط وبحد أقصى ${count} خانة`);
     for (const [i, digit] of Array.from(value).map((digit, i) => [i, digit] as const)) {
       const size = 13 * scale; const cell = width / count;

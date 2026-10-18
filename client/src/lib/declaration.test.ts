@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import * as XLSX from "xlsx";
 import { readFileSync, writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import { addDeclarationSheet, readDeclarations, createDeclarationPdf, DECLARATION_SHEET, DECLARATION_HEADERS, validateDeclarationEstablishments } from "./declaration";
+import { addDeclarationSheet, readDeclarations, createDeclarationPdf, DECLARATION_SHEET, DECLARATION_HEADERS, formatTaxRegistration, validateDeclarationEstablishments } from "./declaration";
 
 describe("employer declarations", () => {
   const data = Object.fromEntries(DECLARATION_HEADERS.map(h => [h, ""]));
@@ -19,6 +19,17 @@ describe("employer declarations", () => {
     expect(() => readDeclarations(wb)).toThrow("متعارضة");
     expect(readDeclarations(XLSX.utils.book_new())).toEqual([]);
   });
+  it("accepts formatted tax numbers, preserves zeros and normalizes Excel input", () => {
+    expect(formatTaxRegistration("000-000-000")).toBe("000-000-000");
+    expect(formatTaxRegistration("٠٠٠-٠٠٠-٠٠١")).toBe("000-000-001");
+    expect(formatTaxRegistration("000000001")).toBe("000-000-001");
+    expect(() => formatTaxRegistration("000-00-000")).toThrow("٩ أرقام");
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{...data, "رقم التسجيل الضريبي":"000-000-001"}, {...data, "رقم التسجيل الضريبي":"000000001"}]), DECLARATION_SHEET);
+    const roundtrip = XLSX.read(XLSX.write(wb, {type:"array",bookType:"xlsx"}), {type:"array"});
+    expect(readDeclarations(roundtrip)).toHaveLength(1);
+    expect(readDeclarations(roundtrip)[0]["رقم التسجيل الضريبي"]).toBe("000-000-001");
+  });
   it("checks the establishment number and name against S2", () => {
     const record = {...makeEmptyRecord(), establishmentNumber: "00000001", establishmentName: "شركة الاختبار"};
     expect(() => validateDeclarationEstablishments([data], [record])).not.toThrow();
@@ -28,7 +39,7 @@ describe("employer declarations", () => {
   it("preserves the two-page source and fills Arabic and identifiers", async () => {
     vi.stubGlobal("fetch", async (url: string) => { const buffer = readFileSync(`client/public/assets/${url.split('/').pop()}`); return {ok:true, arrayBuffer:async()=>buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength)}; });
     try {
-      const bytes = await createDeclarationPdf(data);
+      const bytes = await createDeclarationPdf({...data, "رقم التسجيل الضريبي":"000-000-001"});
       expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
       writeFileSync('/tmp/declaration-filled.pdf',bytes);
       await expect(createDeclarationPdf({...data,"رقم المنشأة":"000000000"})).rejects.toThrow("8");
