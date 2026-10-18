@@ -533,6 +533,7 @@ export default function Home() {
   }
 
   const [declarations, setDeclarations] = useState<Declaration[]>([]);
+  const [standaloneDeclarations, setStandaloneDeclarations] = useState(false);
 
   async function handleExcel(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -558,7 +559,7 @@ export default function Home() {
         foundSheet = true;
         if (candidateRows.length) break;
       }
-      if (!foundSheet) {
+      if (!foundSheet && !nextDeclarations.length) {
         const fallback = workbook.Sheets[workbook.SheetNames.at(-1)!];
         rows = fallback ? XLSX.utils.sheet_to_json<Record<string, unknown>>(fallback, { defval: "" }) : [];
       }
@@ -583,6 +584,18 @@ export default function Home() {
         }
         return [record];
       });
+      if (!imported.length && template === "s2" && nextDeclarations.length) {
+        setDeclarations(nextDeclarations);
+        setStandaloneDeclarations(true);
+        const empty = makeEmptyRecord();
+        setRecords([empty]);
+        setActiveId(empty.id);
+        setSelectedIds(new Set());
+        setShowIncompleteOnly(false);
+        setMode("bulk");
+        toast.success(`تم استيراد ${nextDeclarations.length} إقرار صاحب عمل`, { description: "يمكنك تحميل الإقرار من الزر المستقل دون إدخال بيانات عاملين أو س٢." });
+        return;
+      }
       if (!imported.length) {
         toast.error("لم نجد صفوفًا قابلة للاستيراد", { description: "تأكد من أن الصف الأول يحتوي على أسماء الأعمدة." });
         return;
@@ -590,6 +603,7 @@ export default function Home() {
       if (template === "s2") {
         validateDeclarationEstablishments(nextDeclarations, imported);
         setDeclarations(nextDeclarations);
+        setStandaloneDeclarations(false);
       }
       setRecords(imported);
       setSelectedIds(new Set(imported.map((record) => record.id)));
@@ -614,7 +628,7 @@ export default function Home() {
     }
     setIsProcessing(true);
     try {
-      validateDeclarationEstablishments(declarations, s2Records);
+      if (!standaloneDeclarations) validateDeclarationEstablishments(declarations, s2Records);
       const files = await Promise.all(declarations.map(async d => ({name: `إقرار-صاحب-العمل-${d["رقم المنشأة"]}.pdf`, bytes: await createDeclarationPdf(d)})));
       if (files.length === 1) downloadBlob(files[0].bytes, files[0].name, "application/pdf");
       else {
@@ -812,7 +826,7 @@ export default function Home() {
                   <Button variant="outline" className="button-outline workflow-action" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}><span className="workflow-action-number">2</span><CloudUpload size={16} /> رفع ملف Excel</Button>
                   <Button className="button-primary workflow-action" onClick={downloadAll} disabled={isProcessing}><span className="workflow-action-number">3</span>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل ملف س2 PDF مجمّع</Button>
                   <Button variant="outline" className="button-outline workflow-action" onClick={downloadS2Crm} disabled={isProcessing}><span className="workflow-action-number">4</span><FileSpreadsheet size={16} /> تجهيز س2 لمنظومة CRM</Button>
-                  <div><Button variant="outline" className="button-outline workflow-action" onClick={downloadDeclarations} disabled={isProcessing}><FileText size={16} /> تحميل إقرار صاحب العمل — الخاص بس٢</Button><p>خطاب تسليم بيان تحديث الأجور وإقرار صحة البيانات. ملف PDF منفصل، مرة واحدة لكل منشأة. املأ ورقة «إقرار صاحب العمل» في قالب Excel ثم ارفع الملف. التوقيع والختم يدويًا.</p></div>
+                  <div><Button variant="outline" className="button-outline workflow-action" onClick={downloadDeclarations} disabled={isProcessing}><FileText size={16} /> تحميل إقرار صاحب العمل — الخاص بس٢</Button><p>خطاب تسليم بيان تحديث الأجور وإقرار صحة البيانات. ملف PDF منفصل، مرة واحدة لكل منشأة. املأ ورقة «إقرار صاحب العمل» في قالب Excel ثم ارفع الملف. يمكن رفع بيانات الإقرار فقط دون بيانات عاملين. التوقيع والختم يدويًا.</p></div>
                 </> : <>
                   <Button className="button-primary" onClick={downloadAll} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <Printer size={16} />} تنزيل PDF مجمّع</Button>
                   <Button variant="outline" className="button-outline" onClick={downloadSeparateZip} disabled={isProcessing}><Download size={16} /> ZIP ملفات منفصلة</Button>
