@@ -347,7 +347,7 @@ function initials(value: string) {
 
 function statusClass(status: ReturnType<typeof recordStatus>) {
   if (status === "جاهز") return "status-ready";
-  if (status === "ناقص") return "status-warning";
+  if (status === "ناقص" || status === "قابل للطباعة — غير مكتمل") return "status-warning";
   return "status-draft";
 }
 
@@ -669,6 +669,7 @@ export default function Home() {
       toast.error("السجل يحتاج مراجعة", { description: issues.slice(0, 3).map((issue) => issue.message).join("، ") });
       return;
     }
+    if (recordStatus(activeRecord, template) !== "جاهز" && !window.confirm("النموذج غير مكتمل؛ التصدير مسودة للمراجعة وليس إقرارًا باكتمال بيانات التقديم. هل تريد تنزيل المسودة؟")) return;
     setIsProcessing(true);
     try {
       const pdf = await fillPdf(activeRecord, template);
@@ -682,7 +683,7 @@ export default function Home() {
   }
 
   function validBatch() {
-    return records.filter((record) => selectedIds.has(record.id) && recordStatus(record, template) === "جاهز");
+    return records.filter((record) => selectedIds.has(record.id) && validateRecord(record, template).length === 0);
   }
 
   function toggleRecordSelection(id: string) {
@@ -705,6 +706,7 @@ export default function Home() {
 
   async function downloadAll() {
     const validRecords = validBatch();
+    if(validRecords.some(record => recordStatus(record, template) !== "جاهز") && !window.confirm("الدفعة تشمل نماذج غير مكتملة؛ سيتم تصديرها كمسودات للمراجعة. هل تريد المتابعة؟")) return;
     if (!validRecords.length) {
       toast.error("لا توجد سجلات محددة قابلة للتصدير", { description: "أدخل أي بيانات واختَر السجلات المراد تصديرها. جميع الحقول اختيارية." });
       return;
@@ -749,6 +751,7 @@ export default function Home() {
 
   async function downloadSeparateZip() {
     const validRecords = validBatch();
+    if(validRecords.some(record => recordStatus(record, template) !== "جاهز") && !window.confirm("الدفعة تشمل نماذج غير مكتملة؛ سيتم تصديرها كمسودات للمراجعة. هل تريد المتابعة؟")) return;
     if (!validRecords.length) { toast.error("لا توجد سجلات محددة قابلة للتصدير"); return; }
     setIsProcessing(true);
     try {
@@ -846,7 +849,7 @@ export default function Home() {
           <section className="summary-strip" aria-label="ملخص السجلات">
             <span className="summary-spine" aria-hidden="true" />
             <div className="summary-item"><span className="summary-icon amber"><ClipboardList size={17} /></span><div><strong>{records.length}</strong><span>إجمالي السجلات</span></div></div>
-            <div className="summary-item"><span className="summary-icon green"><BadgeCheck size={17} /></span><div><strong>{readyCount}</strong><span>جاهز للطباعة</span></div></div>
+            <div className="summary-item"><span className="summary-icon green"><BadgeCheck size={17} /></span><div><strong>{readyCount}</strong><span>مكتمل للمراجعة</span></div></div>
             <div className="summary-item"><span className="summary-icon gray"><MoreHorizontal size={17} /></span><div><strong>{draftCount}</strong><span>يحتاج مراجعة</span></div></div>
             <div className="summary-divider" />
             <div className="summary-hint"><span className="hint-pin" /> آخر تعديل محفوظ في هذه الجلسة</div>
@@ -855,7 +858,7 @@ export default function Home() {
           <section className="workbench-section registry-section">
             <div className="section-heading-row">
               <div><p className="section-overline">مسار العمل <span>{template === "s2" || template === "s31" ? "01 / 04" : "01 / 03"}</span></p><h2>{template === "s2" ? "ارفع بيانات س2" : template === "s31" ? "أدخل بيانات نموذج 31" : "أدخل البيانات"}</h2></div>
-              <div className="heading-tools"><span className="template-pill"><FileText size={14} /> {TEMPLATE_LABELS[template]} <ChevronDown size={14} /></span><span className="autosave"><span /> حفظ تلقائي</span></div>
+              <div className="heading-tools"><span className="template-pill"><FileText size={14} /> {TEMPLATE_LABELS[template]} <ChevronDown size={14} /></span><span className="autosave"><span /> حفظ مؤقت أثناء فتح الصفحة</span></div>
             </div>
 
             {template !== "s2" && <Card className="mode-card registry-card">
@@ -925,7 +928,7 @@ export default function Home() {
                   </div>;
                 })}
               </div>
-              <div className="editor-footer"><span><ShieldCheck size={15} /> التعديلات تُحفظ تلقائيًا في هذه الجلسة</span><div><Button variant="outline" className="button-outline" onClick={() => setRecords((current) => current.map((record) => record.id === activeId ? { ...makeEmptyRecord(), id: record.id } : record))}>مسح الحقول</Button>{template !== "s2" && <Button className="button-primary" onClick={downloadSelected} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <ArrowDownToLine size={16} />} تنزيل PDF</Button>}</div></div>
+              <div className="editor-footer"><span><ShieldCheck size={15} /> التعديلات مؤقتة؛ نزّل المخرجات قبل إعادة التحميل أو إغلاق الصفحة</span><div><Button variant="outline" className="button-outline" onClick={() => setRecords((current) => current.map((record) => record.id === activeId ? { ...makeEmptyRecord(), id: record.id } : record))}>مسح الحقول</Button>{template !== "s2" && <Button className="button-primary" onClick={downloadSelected} disabled={isProcessing}>{isProcessing ? <Loader2 className="spin" size={16} /> : <ArrowDownToLine size={16} />} تنزيل PDF</Button>}</div></div>
             </div>
 
             <aside className="preview-panel">

@@ -32,7 +32,7 @@ describe("Arabic form validation", () => {
       expect(validateRecord(makeEmptyRecord(), template)).toEqual([]);
       const partial = { ...makeEmptyRecord(), insuredName: "اسم فقط" };
       expect(validateRecord(partial, template)).toEqual([]);
-      expect(recordStatus(partial, template)).toBe("جاهز");
+      expect(recordStatus(partial, template)).toBe("قابل للطباعة — غير مكتمل");
     }
   });
   it("imports the approved optional headings without imposing list membership", () => {
@@ -129,13 +129,13 @@ describe("Arabic form validation", () => {
   });
 
   it("accepts a complete S1 record", () => {
-    const record = validRecord();
+    const record = { ...validRecord(), applicantInsuranceNumber: "123456789", medicalExam: "نعم", establishmentType: "نمطي" };
     expect(validateRecord(record, "s1")).toEqual([]);
     expect(recordStatus(record, "s1")).toBe("جاهز");
   });
-  it("allows partial identifiers and date chronology", () => {
+  it("rejects supplied incomplete national IDs while keeping optional blanks exportable", () => {
     const record = { ...validRecord(), nationalId: "123", endDate: "2020-01-01" };
-    expect(validateRecord(record, "s6")).toEqual([]);
+    expect(validateRecord(record, "s6")).toEqual(expect.arrayContaining([expect.objectContaining({ key: "nationalId" })]));
   });
   it("normalizes imported dates and Arabic digits", () => {
     const record = mapExcelRow({ "الرقم القومي": "٢٩٥٠١٠١٠١٢٣٤٥٦", "تاريخ بدء الاشتراك": new Date(2024, 4, 19) });

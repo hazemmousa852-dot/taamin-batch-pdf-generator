@@ -2,7 +2,7 @@
 
 export type TemplateId = "s1" | "s2" | "s6" | "s31";
 export const TEMPLATE_LABELS: Record<TemplateId, string> = { s1: "نموذج س1", s2: "نموذج س2", s6: "نموذج س6", s31: "نموذج 31" };
-export type RecordStatus = "مسودة" | "جاهز" | "ناقص";
+export type RecordStatus = "مسودة" | "جاهز" | "ناقص" | "قابل للطباعة — غير مكتمل";
 export type ValidationIssue = { key: keyof PersonRecord; message: string };
 
 export type CodedOption = { value: string; label: string };
@@ -390,7 +390,11 @@ export function parseManualDateInput(value: string) {
 
 export function validateRecord(record: PersonRecord, template: TemplateId = "s1"): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  // All fields are optional. Validate only supplied values.
+  // Blank templates remain exportable; supplied identifiers must be valid in format.
+  for (const key of ["nationalId", "applicantNationalId"] as const) {
+    const value = normalizeDigits(record[key]).trim();
+    if (value && !/^\d{14}$/.test(value)) issues.push({ key, message: `${FIELD_LABELS.get(key)}: يجب إدخال 14 رقمًا` });
+  }
   for (const key of dateFields) {
     const value = record[key].trim();
     if (value && !isValidDate(value)) issues.push({ key, message: `${FIELD_LABELS.get(key) ?? key}: تاريخ غير صحيح` });
@@ -410,8 +414,9 @@ export function relevantFieldCount(template: TemplateId = "s1") {
 export function recordStatus(record: PersonRecord, template: TemplateId = "s1"): RecordStatus {
   const filled = filledCount(record);
   if (filled === 0) return "مسودة";
-  if (validateRecord(record, template).length === 0) return "جاهز";
-  return "ناقص";
+  if (validateRecord(record, template).length > 0) return "ناقص";
+  if (REQUIRED_FIELDS[template].every(key => String(record[key]).trim())) return "جاهز";
+  return "قابل للطباعة — غير مكتمل";
 }
 
 export function filledCount(record: PersonRecord) {
